@@ -33,41 +33,99 @@ _SETTINGS = [
 _extension_timings = {}  # {ext_name: {"total_ms": float, "callbacks": int}}
 
 
-def _install_callback_tracer():
-    """Wrap script_callbacks.call_callback to record per-extension timing."""
-    try:
-        import modules.script_callbacks as sc
-
-        _orig = sc.call_callback
-
-        def _traced(callbacks, *args, **kwargs):
-            for c in callbacks:
-                mod = getattr(c, "__module__", "")
-                ext = _module_to_extension(mod)
-                t0 = time.time()
-                try:
-                    result = c(*args, **kwargs)
-                    if result is not None:
-                        yield result
-                except Exception:
-                    raise
-                finally:
-                    elapsed = (time.time() - t0) * 1000
-                    entry = _extension_timings.setdefault(ext, {"total_ms": 0.0, "callbacks": 0})
-                    entry["total_ms"] += elapsed
-                    entry["callbacks"] += 1
-
-        sc.call_callback = _traced
-    except Exception:
-        traceback.print_exc()
-
-
 def _module_to_extension(module_name: str) -> str:
     """Extract extension folder name from module path."""
     if not module_name or not module_name.startswith("extensions."):
         return "webui-core"
     parts = module_name.split(".")
     return parts[1] if len(parts) > 1 else "unknown"
+
+
+def _timed_wrapper(callback):
+    """Wrap a single callback to record its execution time."""
+    mod = getattr(callback, "__module__", "")
+    ext = _module_to_extension(mod)
+
+    def _inner(*args, **kwargs):
+        t0 = time.time()
+        try:
+            return callback(*args, **kwargs)
+        finally:
+            elapsed = (time.time() - t0) * 1000
+            entry = _extension_timings.setdefault(ext, {"total_ms": 0.0, "callbacks": 0})
+            entry["total_ms"] += elapsed
+            entry["callbacks"] += 1
+
+    return _inner
+
+
+def _install_callback_tracer():
+    """Install tracer using the best available strategy for this WebUI version."""
+    try:
+        import modules.script_callbacks as sc
+    except Exception:
+        return
+
+    # Strategy 1: wrap central call_callback (A1111 / classic Forge)
+    if hasattr(sc, "call_callback"):
+        try:
+            _orig_call = sc.call_callback
+
+            def _traced_call(callbacks, *args, **kwargs):
+                for c in callbacks:
+                    mod = getattr(c, "__module__", "")
+                    ext = _module_to_extension(mod)
+                    t0 = time.time()
+                    try:
+                        result = c(*args, **kwargs)
+                        if result is not None:
+                            yield result
+                    except Exception:
+                        raise
+                    finally:
+                        elapsed = (time.time() - t0) * 1000
+                        entry = _extension_timings.setdefault(ext, {"total_ms": 0.0, "callbacks": 0})
+                        entry["total_ms"] += elapsed
+                        entry["callbacks"] += 1
+
+            sc.call_callback = _traced_call
+            return
+        except Exception:
+            pass
+
+    # Strategy 2: wrap individual registrators (Forge Neo / reForge / variants)
+    _REG_NAMES = [
+        "on_ui_tabs",
+        "on_ui_settings",
+        "on_before_ui",
+        "on_app_started",
+        "on_model_loaded",
+        "on_script_unloaded",
+        "on_before_image_saved",
+        "on_image_saved",
+        "on_after_component",
+        "on_infotext_pasted",
+        "on_load_save",
+        "on_before_reload",
+        "on_cfg_denoiser",
+        "on_cfg_denoised",
+    ]
+
+    def _wrap_reg(name):
+        orig = getattr(sc, name, None)
+        if orig is None or not callable(orig):
+            return
+
+        def _wrapped(callback, *args, **kwargs):
+            return orig(_timed_wrapper(callback), *args, **kwargs)
+
+        setattr(sc, name, _wrapped)
+
+    for reg_name in _REG_NAMES:
+        try:
+            _wrap_reg(reg_name)
+        except Exception:
+            pass
 
 
 # ------------------------------------------------------------------------------
@@ -78,9 +136,22 @@ def _get_extensions():
     try:
         from modules import extensions
 
+        ext_list = getattr(extensions, "extensions", None)
+        if ext_list is None:
+            # Fallback: some variants store extensions differently
+            ext_list = getattr(extensions, "extension_list", None)
+        if ext_list is None:
+            return []
+
         out = []
-        for ext in getattr(extensions, "extensions", []):
-            name = getattr(ext, "name", "unknown")
+        for ext in ext_list:
+            if ext is None:
+                continue
+            name = getattr(ext, "name", None)
+            if not name:
+                # Try folder name from path
+                path = getattr(ext, "path", "")
+                name = os.path.basename(path) or "unknown"
             timing = _extension_timings.get(name, {"total_ms": 0.0, "callbacks": 0})
             out.append(
                 {
@@ -96,7 +167,6 @@ def _get_extensions():
             )
         return out
     except Exception:
-        traceback.print_exc()
         return []
 
 
@@ -158,7 +228,7 @@ try:
                     }
                 )
         except Exception:
-            traceback.print_exc()
+            pass
 
         # Also write static fallback file
         _write_state_js()
