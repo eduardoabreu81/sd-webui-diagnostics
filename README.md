@@ -1,119 +1,136 @@
 <div align="center">
 
+<img src=".github/sd-webui-diagnostics-banner.png" alt="SD-WebUI Diagnostics" width="100%"/>
+
 # 🔍 SD-WebUI Diagnostics
 
-[![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
+[![SD WebUI](https://img.shields.io/badge/SD_WebUI-A1111%20%7C%20Forge%20%7C%20reForge%20%7C%20Neo-blue)](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> Lightweight performance profiler for Stable Diffusion WebUI Forge Neo.
-> Find out which extensions are slowing down your workflow.
+> **Lightweight performance profiler for Stable Diffusion WebUI**
 
 </div>
 
----
+> **Your WebUI feels sluggish and you don't know why? Tired of guessing which extension is slowing everything down? Say no more!** 🦸‍♂️
 
-## What is this?
-
-SD-WebUI Diagnostics is a browser-side extension that lives inside your Stable Diffusion WebUI and measures, in real time, what is making the interface slow. It answers questions like:
-
-- "Which extension is blocking the prompt box for 8 seconds?"
-- "How much memory is each extension eating?"
-- "What JavaScript error crashed the UI today?"
-- "Why is my first paint taking 10 seconds?"
-
-It does **not** touch Python, CUDA, or model inference. It only looks at the **frontend** — the browser tab where you type prompts and click buttons.
+Your ultimate **frontend diagnostics** tool directly inside your Stable Diffusion WebUI. Measure exactly what makes the interface slow — from extension startup times to JavaScript memory leaks, slow event handlers, network latency, and frame drops. All in real time, without touching Python or CUDA.
 
 ---
 
-## What it measures
+## 📋 Table of Contents
 
-| Metric | Why it matters |
-|---|---|
-| **Startup time per extension** | See exactly how many seconds each extension adds to the initial page load |
-| **Input delay (INP)** | Detect when keystrokes or clicks are stuck waiting in the browser queue |
-| **Layout shifts (CLS)** | Spot which UI elements are jumping around and annoying you |
-| **Memory usage** | Track RAM growth over time to catch memory leaks |
-| **Console errors** | Collect JavaScript errors from all extensions in one place |
-| **Heavy event handlers** | Identify which functions freeze the interface when you type or click |
+- [What's New](#-whats-new)
+- [Features](#-features)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Changelog](#-changelog)
+- [Credits](#-credits)
 
 ---
 
-## How it works
+## 🆕 What's New
 
-SD-WebUI Diagnostics is injected into the Gradio page like any other extension. It works by wrapping the standard WebUI hooks and browser APIs with lightweight timers:
-
-1. **Intercept startup hooks** — wraps `onUiLoaded`, `onUiUpdate`, and the Gradio mutation observer so it knows when each extension starts and finishes initializing.
-2. **Wrap event listeners** — wraps `addEventListener` on key targets (prompt textareas, buttons, sliders) to measure how long handlers take.
-3. **Performance Observer** — listens to the browser's native `PerformanceObserver` for INP, CLS, and LCP events.
-4. **Console interceptor** — captures `console.error`, `console.warn`, and unhandled exceptions so nothing is lost.
-5. **Memory snapshots** — reads `performance.memory` (Chrome) every few seconds to build a timeline.
-
-All data is collected locally in the browser. Nothing is sent to any server.
-
----
-
-## What you see
-
-A small floating panel in the bottom-right corner of the WebUI (collapsible) shows:
-
-- **Live INP meter** — turns red when typing starts lagging
-- **Extension startup chart** — horizontal bars showing load time per extension
-- **Error feed** — last 20 console errors, clickable to expand stack traces
-- **Memory timeline** — simple line chart of RAM usage over the last 5 minutes
-- **Export button** — downloads a `.json` report you can attach to GitHub issues
-
-When the panel is collapsed, only a tiny pill shows the current INP and error count.
+### v0.1.0 — Cross-Platform Frontend Profiler
+- **Universal Compatibility** — Works on AUTOMATIC1111, Forge, reForge, and Forge Neo (Gradio 3 & 4). ⭐
+- **FPS Meter + Real Frame Drops** — Detects actual skipped frames by measuring frame delta timing, not just FPS averages. ⭐
+- **Resource Loading Timeline** — See which JS/CSS/images are slowing down your page load. ⭐
+- **Gradio Call Timing** — Measures how long each backend call takes (Generate, queue, predict) with separate tracking. ⭐
+- **MutationObserver DOM Tracking** — Detects in real time when extensions inject new nodes into the page. ⭐
+- **Long Task Observer** — Catches when the browser main thread blocks for >50ms.
+- **Auto-Collapse Panel** — Panel closes automatically after 30s of inactivity so it never gets in your way.
+- **Clear Metrics Button** — Reset all data and start a fresh profiling session without reloading.
 
 ---
 
-## Installation
+## 🎯 Features
 
-1. Open your SD WebUI (A1111, Forge, reForge, or Forge Neo)
-2. Go to **Extensions** → **Install from URL**
+> ⭐ = Core Highlights
+
+### 🔍 Performance Profiling
+- **Startup Time per Extension** — See exactly how long each extension takes to initialize via `onUiLoaded` / `onUiUpdate` hooks. ⭐
+- **Input Delay (INP)** — Detects when keystrokes, clicks, or slider moves get stuck waiting in the browser queue.
+- **Layout Shifts (CLS)** — Spot which UI elements jump around during page load.
+- **Memory Timeline** — Track JavaScript heap usage over time (Chrome only) to catch leaks. ⭐
+- **FPS + Frame Drops** — Real-time frames-per-second counter with actual drop detection based on frame timing. ⭐
+
+### 🌐 Network & API
+- **Network Calls** — Intercepts all `fetch` and `XMLHttpRequest` calls, showing URL, method, status, and duration. ⭐
+- **Gradio Calls** — Separates backend API calls (predict, queue, run) from generic network traffic so you know exactly how long Generate is taking. ⭐
+- **Resource Loading** — Uses `PerformanceObserver` to flag slow assets (scripts, stylesheets, images). ⭐
+
+### 🐛 Errors & Debugging
+- **Console Error Capture** — Collects `console.error`, `console.warn`, and unhandled exceptions from all extensions in one place.
+- **Slow Event Handlers** — Wraps `addEventListener` to flag handlers freezing the UI for >50ms.
+- **Long Tasks** — Detects main-thread blocks that make the interface unresponsive.
+
+### 📊 DOM & Extensions
+- **DOM Nodes by Extension** — Counts how many HTML elements each extension injected, updated in real time via `MutationObserver`. ⭐
+- **Live Badge Strip** — Collapsed pill shows INP, CLS, FPS, network, errors, and more at a glance.
+
+### 💾 Export & Control
+- **Export JSON Report** — Downloads a full snapshot of all metrics for attaching to GitHub issues. ⭐
+- **Clear Metrics** — One-click reset without reloading the page.
+- **Auto-Collapse** — Panel hides itself after 30 seconds of inactivity.
+
+---
+
+## 📦 Installation
+
+### Inside SD WebUI (Recommended)
+
+1. Open your WebUI and go to the **Extensions** tab.
+2. Click on the **Install from URL** sub-tab.
 3. Paste: `https://github.com/eduardoabreu81/sd-webui-diagnostics`
-4. Click **Install** and reload the WebUI
-5. The diagnostics panel appears automatically in the bottom-right corner
+4. Click **Install**.
+5. Go to the **Installed** sub-tab and click **Apply and restart UI**.
 
-> ⚠️ Best experience on Forge Neo / Gradio 4. Compatible with A1111 and reForge (Gradio 3) with limited Gradio-call detection.
-
----
-
-## When to use it
-
-| Scenario | What to check |
-|---|---|
-| "My prompt box lags when I type" | Open the panel, look at INP and the "Slow Event Handlers" tab |
-| "The WebUI takes forever to open" | Check the "Startup" tab — the longest bar is the culprit |
-| "The UI froze and I don't know why" | Check the "Errors" tab for red stack traces |
-| "Memory usage keeps growing" | Check the "Memory" timeline for spikes |
-| "I'm reporting a bug to an extension author" | Click **Export JSON** and attach the file to your issue |
+> ⚠️ Compatible with AUTOMATIC1111, Forge, reForge, and Forge Classic / Neo.
 
 ---
 
-## Privacy & Data
+## 🚀 Quick Start
 
-- **Zero network calls.** All metrics are computed inside your browser.
-- **Zero logging to disk.** Data lives only in RAM while the tab is open.
-- **Export is manual.** The JSON report is only generated when you click the button.
-
----
-
-## Limitations
-
-- Only measures the **browser tab** (frontend). It cannot see Python backend delays, model loading, or CUDA operations.
-- Extensions that inject code directly into the DOM without using standard hooks may be harder to profile precisely.
-- Memory readings are Chrome-only (`performance.memory` is not standardized).
-- Heavy profiling adds a tiny overhead (~1-2%). You can disable the extension when not needed.
+1. After reloading the WebUI, look for the small **🔍 pill** in the bottom-right corner.
+2. Click it to expand the diagnostics panel.
+3. Interact with your WebUI (type in the prompt box, click Generate, switch tabs).
+4. Watch the badges update in real time — red badges mean something is slow!
+5. Click any section to see detailed bars and timings.
+6. Found a problem? Click **📥 Export JSON Report** and attach the file to your issue.
 
 ---
 
-## Credits
+## 📖 Changelog
 
-- Idea born from debugging [sd-webui-tagcomplete-neo](https://github.com/eduardoabreu81/sd-webui-tagcomplete-neo) performance issues
-- Built for the Forge Neo community
+### v0.1.0 — Cross-Platform Frontend Profiler
+- Universal compatibility with A1111, Forge, reForge, and Forge Neo.
+- FPS meter with real frame-drop detection.
+- Resource loading timeline.
+- Gradio call timing (predict, queue, run).
+- MutationObserver for real-time DOM tracking.
+- Long task observer for main-thread blocking.
+- Auto-collapse panel after inactivity.
+- Clear metrics button.
+- Fixed `removeEventListener` memory leak via `WeakMap`.
 
 ---
 
-## License
+## 📄 Credits
+
+- Built for the Stable Diffusion WebUI community.
+- Inspired by the need to debug extension performance without guessing.
+
+---
+
+## 📜 License
 
 MIT — see [LICENSE](LICENSE)
+
+---
+
+<div align="center">
+
+Made with ❤️ for the Stable Diffusion community
+
+**[Report Bug](https://github.com/eduardoabreu81/sd-webui-diagnostics/issues)** • **[Request Feature](https://github.com/eduardoabreu81/sd-webui-diagnostics/issues)** • **[Discussions](https://github.com/eduardoabreu81/sd-webui-diagnostics/discussions)**
+
+</div>

@@ -262,19 +262,31 @@
     // ------------------------------------------------------------------
     function startFpsMeter() {
         let frames = 0;
+        let dropped = 0;
         let lastTime = now();
-        function tick() {
+        let lastFrameTime = now();
+        const expectedInterval = 1000 / 60; // ~16.67ms per frame at 60Hz
+
+        function tick(currentTime) {
             frames++;
+            const frameDelta = currentTime - lastFrameTime;
+            lastFrameTime = currentTime;
+
+            // Real drop detection: if a frame took >1.5x the expected interval
+            if (frameDelta > expectedInterval * 1.5) {
+                dropped += Math.max(1, Math.round(frameDelta / expectedInterval) - 1);
+            }
+
             const time = now();
             if (time >= lastTime + 1000) {
                 const elapsed = (time - lastTime) / 1000;
                 const fps = Math.round(frames / elapsed);
-                const dropped = Math.max(0, Math.round(60 * elapsed) - frames);
                 metrics.fps.push({ fps, dropped, timestamp: time });
                 if (metrics.fps.length > 60) metrics.fps.shift();
                 updateFpsBadge();
                 if (panelVisible) renderFps();
                 frames = 0;
+                dropped = 0;
                 lastTime = time;
             }
             fpsRafId = requestAnimationFrame(tick);
@@ -307,29 +319,41 @@
     // Event handler profiler
     // ------------------------------------------------------------------
     const origAddEventListener = EventTarget.prototype.addEventListener;
+    const origRemoveEventListener = EventTarget.prototype.removeEventListener;
+    const listenerMap = new WeakMap();
+
     EventTarget.prototype.addEventListener = function (type, listener, options) {
         if (!listener || typeof listener !== "function") {
             return origAddEventListener.call(this, type, listener, options);
         }
-        const wrapped = function (event) {
-            const start = now();
-            try {
-                listener.call(this, event);
-            } finally {
-                const duration = now() - start;
-                if (duration > 50) {
-                    metrics.handlers.push({
-                        event: type,
-                        target: event.target?.nodeName || "",
-                        duration,
-                        fnName: listener.name || "(anonymous)",
-                        timestamp: now(),
-                    });
-                    updateHandlerBadge();
+        let wrapped = listenerMap.get(listener);
+        if (!wrapped) {
+            wrapped = function (event) {
+                const start = now();
+                try {
+                    listener.call(this, event);
+                } finally {
+                    const duration = now() - start;
+                    if (duration > 50) {
+                        metrics.handlers.push({
+                            event: type,
+                            target: event.target?.nodeName || "",
+                            duration,
+                            fnName: listener.name || "(anonymous)",
+                            timestamp: now(),
+                        });
+                        updateHandlerBadge();
+                    }
                 }
-            }
-        };
+            };
+            listenerMap.set(listener, wrapped);
+        }
         return origAddEventListener.call(this, type, wrapped, options);
+    };
+
+    EventTarget.prototype.removeEventListener = function (type, listener, options) {
+        const wrapped = listenerMap.get(listener);
+        return origRemoveEventListener.call(this, type, wrapped || listener, options);
     };
 
     // ------------------------------------------------------------------
@@ -687,7 +711,10 @@
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extension nodes detected</div>';
             return;
         }
-        const max = Math.max(...metrics.domNodes.map((m) => m.count), 1);
+        let max = 1;
+        for (let i = 0; i < metrics.domNodes.length; i++) {
+            if (metrics.domNodes[i].count > max) max = metrics.domNodes[i].count;
+        }
         el.innerHTML = metrics.domNodes
             .map((m) => {
                 const pct = (m.count / max) * 100;
