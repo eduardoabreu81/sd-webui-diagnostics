@@ -1275,6 +1275,11 @@
     // Init
     // ------------------------------------------------------------------
     function init() {
+        const CFG = getConfig();
+        if (CFG.enabled === false) {
+            console.log("[SD-WebUI Diagnostics] Widget disabled in Settings.");
+            return;
+        }
         createPanel();
         startMemoryPolling();
         startDomNodesObserver();

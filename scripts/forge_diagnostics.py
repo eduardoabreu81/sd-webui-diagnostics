@@ -15,6 +15,7 @@ _CONFIG_JS_PATH = os.path.join(_EXTENSION_PATH, "javascript", "diagnostics_confi
 _STATE_JS_PATH = os.path.join(_EXTENSION_PATH, "javascript", "diagnostics_state.js")
 
 _SETTINGS = [
+    ("enabled", True, "Enable diagnostics widget"),
     ("show_inp", True, "Show INP badge"),
     ("show_cls", True, "Show CLS badge"),
     ("show_fps", True, "Show FPS badge"),
@@ -154,10 +155,11 @@ def _get_extensions():
             path = getattr(ext, "path", "")
             remote = getattr(ext, "remote", None)
             is_builtin = (
-                remote is None
+                not remote
                 or remote == "built-in"
                 or "builtin" in path.lower()
                 or "built-in" in path.lower()
+                or "extensions-builtin" in path.lower()
             )
             out.append(
                 {
