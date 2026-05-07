@@ -1096,6 +1096,7 @@
         if (!last) { badge.textContent = "INP —"; badge.className = "sd-webui-diagnostics-badge"; return; }
         const v = last.value;
         badge.textContent = `INP ${fmtMs(v)}`;
+        badge.title = `INP: ${fmtMs(v)}`;
         badge.className = "sd-webui-diagnostics-badge " + (v < 200 ? "ok" : v < 500 ? "warn" : "bad");
     }
 
@@ -1103,6 +1104,7 @@
         const badge = document.getElementById("fd-badge-cls");
         if (!badge) return;
         badge.textContent = `CLS ${metrics.cls.toFixed(3)}`;
+        badge.title = `CLS: ${metrics.cls.toFixed(3)}`;
         badge.className = "sd-webui-diagnostics-badge " + (metrics.cls < 0.1 ? "ok" : metrics.cls < 0.25 ? "warn" : "bad");
     }
 
@@ -1128,6 +1130,7 @@
         if (!badge) return;
         const total = metrics.domNodes.reduce((sum, m) => sum + m.count, 0);
         badge.textContent = `${total} nodes`;
+        badge.title = `${total} DOM nodes`;
         badge.className = "sd-webui-diagnostics-badge" + (total > 5000 ? " warn" : "");
     }
 
@@ -1136,6 +1139,7 @@
         if (!badge) return;
         const last = metrics.network[metrics.network.length - 1];
         badge.textContent = last ? `NET ${fmtMs(last.duration)}` : "NET —";
+        badge.title = last ? `Network: ${fmtMs(last.duration)}` : "Network: —";
         badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.duration < 1000 ? "ok" : last.duration < 3000 ? "warn" : "bad");
     }
 
@@ -1144,6 +1148,7 @@
         if (!badge) return;
         const count = metrics.longTasks.length;
         badge.textContent = `${count} LT`;
+        badge.title = `${count} long tasks`;
         badge.className = "sd-webui-diagnostics-badge " + (count === 0 ? "ok" : "warn");
     }
 
@@ -1152,6 +1157,7 @@
         if (!badge) return;
         const last = metrics.fps[metrics.fps.length - 1];
         badge.textContent = last ? `${last.fps} FPS` : "FPS —";
+        badge.title = last ? `${last.fps} FPS (${last.dropped} dropped)` : "FPS: —";
         badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.fps >= 50 ? "ok" : last.fps >= 30 ? "warn" : "bad");
     }
 
@@ -1160,6 +1166,7 @@
         if (!badge) return;
         const count = metrics.resources.length;
         badge.textContent = `${count} res`;
+        badge.title = `${count} resources loaded`;
         badge.className = "sd-webui-diagnostics-badge";
     }
 
@@ -1168,6 +1175,7 @@
         if (!badge) return;
         const last = metrics.gradioCalls[metrics.gradioCalls.length - 1];
         badge.textContent = last ? `GRD ${fmtMs(last.duration)}` : "GRD —";
+        badge.title = last ? `Gradio: ${fmtMs(last.duration)}` : "Gradio: —";
         badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.duration < 2000 ? "ok" : last.duration < 5000 ? "warn" : "bad");
     }
 
@@ -1176,6 +1184,7 @@
         if (!badge) return;
         const count = metrics.errors.length;
         badge.textContent = `${count} err`;
+        badge.title = `${count} errors`;
         badge.className = "sd-webui-diagnostics-badge " + (count === 0 ? "ok" : "bad");
         if (panelVisible) renderErrors();
         analyzeExtensionHealth();
@@ -1186,6 +1195,7 @@
         if (!badge) return;
         const broken = metrics.extensionStatus.filter((s) => !s.healthy).length;
         badge.textContent = `${metrics.extensionStatus.length} ext`;
+        badge.title = `${metrics.extensionStatus.length} extensions (${broken} with issues)`;
         badge.className = "sd-webui-diagnostics-badge " + (broken === 0 ? "ok" : "bad");
     }
 
