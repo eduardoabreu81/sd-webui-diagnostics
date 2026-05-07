@@ -979,47 +979,53 @@
             }
         }
 
-        // Drag: widget follows mouse, snaps to nearest corner on release
-        let dragState = { active: false, offsetX: 0, offsetY: 0 };
+        // Drag: widget follows mouse via transform, snaps on release
+        let dragState = { active: false, startX: 0, startY: 0, origLeft: 0, origTop: 0 };
         const dragHandle = document.getElementById("fd-drag-handle");
         dragHandle.addEventListener("mousedown", (e) => {
             dragState.active = true;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
             const rect = panelEl.getBoundingClientRect();
-            dragState.offsetX = e.clientX - rect.left;
-            dragState.offsetY = e.clientY - rect.top;
+            dragState.origLeft = rect.left;
+            dragState.origTop = rect.top;
+            // Freeze layout and prepare for smooth transform-based drag
             panelEl.style.transition = 'none';
-            // Switch from anchored positioning to absolute tracking
-            panelEl.style.left = rect.left + 'px';
-            panelEl.style.top = rect.top + 'px';
-            panelEl.style.right = 'auto';
-            panelEl.style.bottom = 'auto';
+            panelEl.style.willChange = 'transform';
+            panelEl.style.transform = 'translate3d(0,0,0)';
             dragHandle.style.cursor = 'grabbing';
         });
         document.addEventListener("mousemove", (e) => {
             if (!dragState.active) return;
             e.preventDefault();
-            let x = e.clientX - dragState.offsetX;
-            let y = e.clientY - dragState.offsetY;
-            // Clamp to viewport
+            let dx = e.clientX - dragState.startX;
+            let dy = e.clientY - dragState.startY;
+            // Clamp so panel stays inside viewport
             const vw = window.innerWidth;
             const vh = window.innerHeight;
             const rect = panelEl.getBoundingClientRect();
-            x = Math.max(0, Math.min(x, vw - rect.width));
-            y = Math.max(0, Math.min(y, vh - rect.height));
-            panelEl.style.left = x + 'px';
-            panelEl.style.top = y + 'px';
+            const minDx = -dragState.origLeft;
+            const maxDx = vw - dragState.origLeft - rect.width;
+            const minDy = -dragState.origTop;
+            const maxDy = vh - dragState.origTop - rect.height;
+            dx = Math.max(minDx, Math.min(dx, maxDx));
+            dy = Math.max(minDy, Math.min(dy, maxDy));
+            panelEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)';
         });
         document.addEventListener("mouseup", () => {
             if (!dragState.active) return;
             dragState.active = false;
-            panelEl.style.transition = '';
             dragHandle.style.cursor = '';
-            // Snap to nearest corner
+            // Read final visual position
             const rect = panelEl.getBoundingClientRect();
             const cx = rect.left + rect.width / 2;
             const cy = rect.top + rect.height / 2;
             const vw = window.innerWidth;
             const vh = window.innerHeight;
+            // Clear transform and switch back to anchored positioning
+            panelEl.style.willChange = '';
+            panelEl.style.transform = '';
+            panelEl.style.transition = '';
             const anchor = (cy < vh / 2 ? 'top' : 'bottom') + '-' + (cx < vw / 2 ? 'left' : 'right');
             applyAnchor(anchor);
             localStorage.setItem('sd_diagnostics_anchor', anchor);
