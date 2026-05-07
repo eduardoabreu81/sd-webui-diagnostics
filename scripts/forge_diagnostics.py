@@ -153,16 +153,25 @@ def _get_extensions():
                 path = getattr(ext, "path", "")
                 name = os.path.basename(path) or "unknown"
             timing = _extension_timings.get(name, {"total_ms": 0.0, "callbacks": 0})
+            path = getattr(ext, "path", "")
+            remote = getattr(ext, "remote", None)
+            is_builtin = (
+                remote is None
+                or remote == "built-in"
+                or "builtin" in path.lower()
+                or "built-in" in path.lower()
+            )
             out.append(
                 {
                     "name": name,
-                    "path": getattr(ext, "path", None),
+                    "path": path,
                     "enabled": getattr(ext, "enabled", False),
                     "version": getattr(ext, "version", None),
-                    "remote": getattr(ext, "remote", None),
+                    "remote": remote,
                     "branch": getattr(ext, "branch", None),
                     "startup_ms": round(timing["total_ms"], 1),
                     "callbacks": timing["callbacks"],
+                    "is_builtin": is_builtin,
                 }
             )
         return out

@@ -1035,37 +1035,49 @@
         if (panelVisible) renderExtensionHealth();
     }
 
+    function _renderExtCard(s) {
+        const icon = s.healthy ? "✅" : s.errors > 0 ? "❌" : "⚠️";
+        const startupTime = s.startupMs ? fmtMs(s.startupMs) : "—";
+        const domCount = metrics.domNodes.find((d) => d.name === s.name)?.count || 0;
+        const versionTag = s.version ? `<span style="font-size:9px;color:#6b7280;margin-left:4px;">${s.version}</span>` : "";
+        const extErrors = metrics.errors.filter((e) => {
+            const txt = ((e.stack || "") + (e.message || "")).toLowerCase();
+            return txt.includes(s.name.toLowerCase());
+        });
+        const errorPreview = extErrors.length
+            ? `<div style="font-size:10px;color:#fca5a5;margin-top:4px;font-family:monospace;">${extErrors[0].message.substring(0, 100)}</div>`
+            : "";
+        return `<div style="background:#1f2937;padding:8px;border-radius:6px;margin-bottom:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="font-weight:600;font-size:12px;">${icon} ${s.name}${versionTag}</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
+                    <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#374151;" title="Reloads the entire WebUI page to refresh this extension" onclick="if(confirm('Reload the entire WebUI page?'))location.reload()">🔄 Reload</button>
+                </div>
+            </div>
+            ${errorPreview}
+        </div>`;
+    }
+
     function renderExtensionHealth() {
         const el = document.getElementById("fd-extension-health");
         if (!metrics.extensionStatus.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected. <button class="sd-webui-diagnostics-btn" style="margin-top:6px;" onclick="loadBackendState()">🔄 Retry</button></div>';
             return;
         }
-        el.innerHTML = metrics.extensionStatus
-            .map((s) => {
-                const icon = s.healthy ? "✅" : s.errors > 0 ? "❌" : "⚠️";
-                const startupTime = s.startupMs ? fmtMs(s.startupMs) : "—";
-                const domCount = metrics.domNodes.find((d) => d.name === s.name)?.count || 0;
-                const versionTag = s.version ? `<span style="font-size:9px;color:#6b7280;margin-left:4px;">${s.version}</span>` : "";
-                const extErrors = metrics.errors.filter((e) => {
-                    const txt = ((e.stack || "") + (e.message || "")).toLowerCase();
-                    return txt.includes(s.name.toLowerCase());
-                });
-                const errorPreview = extErrors.length
-                    ? `<div style="font-size:10px;color:#fca5a5;margin-top:4px;font-family:monospace;">${extErrors[0].message.substring(0, 100)}</div>`
-                    : "";
-                return `<div style="background:#1f2937;padding:8px;border-radius:6px;margin-bottom:6px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                        <div style="font-weight:600;font-size:12px;">${icon} ${s.name}${versionTag}</div>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
-                            <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#374151;" title="Reloads the entire WebUI page to refresh this extension" onclick="if(confirm('Reload the entire WebUI page?'))location.reload()">🔄 Reload</button>
-                        </div>
-                    </div>
-                    ${errorPreview}
-                </div>`;
-            })
-            .join("");
+        const installed = metrics.extensionStatus.filter((s) => !s.is_builtin);
+        const builtin = metrics.extensionStatus.filter((s) => s.is_builtin);
+
+        let html = "";
+        if (installed.length) {
+            html += `<div style="font-size:11px;font-weight:700;color:#e0e0e0;margin-bottom:8px;">📦 Installed Extensions (${installed.length})</div>`;
+            html += installed.map(_renderExtCard).join("");
+        }
+        if (builtin.length) {
+            html += `<div style="font-size:11px;font-weight:700;color:#9ca3af;margin:12px 0 8px;">🔧 Built-in Extensions (${builtin.length})</div>`;
+            html += builtin.map(_renderExtCard).join("");
+        }
+        el.innerHTML = html;
     }
 
     // ------------------------------------------------------------------
