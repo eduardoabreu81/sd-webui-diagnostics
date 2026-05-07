@@ -1314,9 +1314,17 @@
     // Init
     // ------------------------------------------------------------------
     function init() {
+        if (window.__SD_WEBUI_DIAGNOSTICS_INIT__) return;
+        window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
+
         const CFG = getConfig();
         if (CFG.enabled === false) {
             console.log("[SD-WebUI Diagnostics] Widget disabled in Settings.");
+            return;
+        }
+        // Only run on the main generation tab (txt2img/img2img), not Settings/Extensions/etc.
+        const isMainTab = !!(document.querySelector("#tabs") || document.getElementById("txt2img_prompt"));
+        if (!isMainTab) {
             return;
         }
         createPanel();
