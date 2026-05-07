@@ -1039,11 +1039,16 @@
         const domCount = metrics.domNodes.find((d) => d.name === s.name)?.count || 0;
         const versionTag = s.version ? `<span style="font-size:9px;color:#6b7280;margin-left:4px;">${s.version}</span>` : "";
         const extErrors = metrics.errors.filter((e) => {
-            const txt = ((e.stack || "") + (e.message || "")).toLowerCase();
-            return txt.includes(s.name.toLowerCase());
+            const msg = String(e.message || "").toLowerCase();
+            const stack = (e.stack || "").toLowerCase();
+            // Don't self-attribute generic console warnings
+            if (s.name === "sd-webui-diagnostics" && !msg.includes("sd-webui-diagnostics")) {
+                return false;
+            }
+            return msg.includes(s.name.toLowerCase()) || stack.includes(s.name.toLowerCase());
         });
         const errorPreview = extErrors.length
-            ? `<div style="font-size:10px;color:#fca5a5;margin-top:4px;font-family:monospace;">${extErrors[0].message.substring(0, 100)}</div>`
+            ? `<div style="font-size:10px;color:#fca5a5;margin-top:4px;font-family:monospace;">${String(extErrors[0].message).substring(0, 100)}</div>`
             : "";
         const startupErrCount = s.startupErrors ? s.startupErrors.length : 0;
         let startupErrHtml = "";
