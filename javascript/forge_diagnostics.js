@@ -530,17 +530,23 @@
                 white-space: nowrap;
             }
             .sd-webui-diagnostics-badges {
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: flex-end;
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
                 gap: 4px;
+                width: 100%;
+                max-width: 360px;
             }
             .sd-webui-diagnostics-badge {
-                padding: 2px 6px;
+                padding: 2px 4px;
                 border-radius: 4px;
                 font-size: 10px;
                 font-weight: 700;
                 background: #374151;
+                text-align: center;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 0;
             }
             .sd-webui-diagnostics-badge.ok { background: #166534; color: #dcfce7; }
             .sd-webui-diagnostics-badge.warn { background: #854d0e; color: #fef9c3; }
