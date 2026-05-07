@@ -11,9 +11,7 @@
 
 </div>
 
-> **Your WebUI feels sluggish and you don't know why? Tired of guessing which extension is slowing everything down? Say no more!** 🦸‍♂️
-
-Your ultimate **frontend diagnostics** tool directly inside your Stable Diffusion WebUI. Measure exactly what makes the interface slow — from extension startup times to JavaScript memory leaks, slow event handlers, network latency, and frame drops. All in real time, without touching Python or CUDA.
+A lightweight frontend profiler that runs directly inside your Stable Diffusion WebUI tab. Track extension startup times, JavaScript memory leaks, slow event handlers, network latency, frame drops, and UI blocking events — all in real time, without external tools or Python overhead.
 
 ---
 
