@@ -91,6 +91,7 @@ def _install_callback_tracer():
             _orig_call = sc.call_callback
 
             def _traced_call(callbacks, *args, **kwargs):
+                results = []
                 for c in callbacks:
                     mod = getattr(c, "__module__", "")
                     ext = _module_to_extension(mod)
@@ -98,7 +99,7 @@ def _install_callback_tracer():
                     try:
                         result = c(*args, **kwargs)
                         if result is not None:
-                            yield result
+                            results.append(result)
                     except Exception as exc:
                         _record_error(ext, c, exc)
                         raise
@@ -107,6 +108,7 @@ def _install_callback_tracer():
                         entry = _extension_timings.setdefault(ext, {"total_ms": 0.0, "callbacks": 0})
                         entry["total_ms"] += elapsed
                         entry["callbacks"] += 1
+                return results
 
             sc.call_callback = _traced_call
             return

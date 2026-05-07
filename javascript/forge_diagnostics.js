@@ -96,15 +96,37 @@
     const origError = console.error;
     const origWarn = console.warn;
 
+    function _safeStringify(args) {
+        try {
+            return args.map(a => {
+                if (a == null) return String(a);
+                if (typeof a === 'object') {
+                    try { return JSON.stringify(a); } catch { return '[Object]'; }
+                }
+                return String(a);
+            }).join(' ');
+        } catch {
+            return '[Console message stringify failed]';
+        }
+    }
+
     console.error = function (...args) {
-        metrics.errors.push({ type: "error", message: args.join(" "), stack: new Error().stack, timestamp: now() });
-        updateErrorBadge();
+        const msg = _safeStringify(args);
+        const last = metrics.errors[metrics.errors.length - 1];
+        if (!last || last.message !== msg || (now() - last.timestamp) > 1000) {
+            metrics.errors.push({ type: "error", message: msg, stack: new Error().stack, timestamp: now() });
+            updateErrorBadge();
+        }
         origError.apply(console, args);
     };
 
     console.warn = function (...args) {
-        metrics.errors.push({ type: "warn", message: args.join(" "), stack: new Error().stack, timestamp: now() });
-        updateErrorBadge();
+        const msg = _safeStringify(args);
+        const last = metrics.errors[metrics.errors.length - 1];
+        if (!last || last.message !== msg || (now() - last.timestamp) > 1000) {
+            metrics.errors.push({ type: "warn", message: msg, stack: new Error().stack, timestamp: now() });
+            updateErrorBadge();
+        }
         origWarn.apply(console, args);
     };
 
@@ -356,16 +378,32 @@
     const origRemoveEventListener = EventTarget.prototype.removeEventListener;
     const listenerMap = new WeakMap();
 
+    // Build a composite key so the same listener registered with different
+    // types/options gets wrapped independently.  This prevents Svelte/Gradio
+    // from losing event listeners when tabs or components re-bind.
+    function _listenerKey(listener, type, options) {
+        const optStr = (typeof options === 'object' && options !== null)
+            ? JSON.stringify(options)
+            : String(options);
+        return `${type}::${optStr}`;
+    }
+
     EventTarget.prototype.addEventListener = function (type, listener, options) {
         if (!listener || typeof listener !== "function") {
             return origAddEventListener.call(this, type, listener, options);
         }
-        let wrapped = listenerMap.get(listener);
+        let byType = listenerMap.get(listener);
+        if (!byType) {
+            byType = new Map();
+            listenerMap.set(listener, byType);
+        }
+        const key = _listenerKey(listener, type, options);
+        let wrapped = byType.get(key);
         if (!wrapped) {
             wrapped = function (event) {
                 const start = now();
                 try {
-                    listener.call(this, event);
+                    return listener.call(this, event);   // <-- preserve return value
                 } finally {
                     const duration = now() - start;
                     if (duration > 50) {
@@ -380,13 +418,15 @@
                     }
                 }
             };
-            listenerMap.set(listener, wrapped);
+            byType.set(key, wrapped);
         }
         return origAddEventListener.call(this, type, wrapped, options);
     };
 
     EventTarget.prototype.removeEventListener = function (type, listener, options) {
-        const wrapped = listenerMap.get(listener);
+        const byType = listenerMap.get(listener);
+        const key = byType ? _listenerKey(listener, type, options) : null;
+        const wrapped = key ? byType.get(key) : null;
         return origRemoveEventListener.call(this, type, wrapped || listener, options);
     };
 
