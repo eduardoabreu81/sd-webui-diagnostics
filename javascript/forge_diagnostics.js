@@ -468,7 +468,9 @@
                 position: fixed;
                 bottom: 16px;
                 right: 16px;
-                width: 380px;
+                width: 460px;
+                min-width: 320px;
+                max-width: 90vw;
                 max-height: 70vh;
                 background: #0b0f19;
                 border: 1px solid #4b5563;
@@ -481,6 +483,7 @@
                 display: flex;
                 flex-direction: column;
                 box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                resize: horizontal;
             }
             .sd-webui-diagnostics-header {
                 display: flex;
@@ -494,12 +497,15 @@
             }
             .sd-webui-diagnostics-header h3 {
                 margin: 0;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 600;
+                white-space: nowrap;
             }
             .sd-webui-diagnostics-badges {
                 display: flex;
-                gap: 6px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                gap: 4px;
             }
             .sd-webui-diagnostics-badge {
                 padding: 2px 6px;
@@ -622,7 +628,7 @@
             .sd-webui-diagnostics-footer {
                 font-size: 10px;
                 color: #6b7280;
-                text-align: right;
+                text-align: center;
                 padding: 8px 14px;
                 border-top: 1px solid #374151;
                 margin-top: 4px;
