@@ -26,6 +26,9 @@ _SETTINGS = [
     ("show_res", True, "Show Resources badge"),
     ("show_gradio", True, "Show Gradio calls badge"),
     ("show_extension_health", True, "Show Extension Health tab"),
+    ("icon_metric", "errors", "Icon metric (errors, inp, memory, fps, none)"),
+    ("default_state", "bar", "Default widget state (icon, bar, expanded)"),
+    ("position_anchor", "bottom-right", "Default position (top-left, top-right, bottom-left, bottom-right)"),
 ]
 
 # ------------------------------------------------------------------------------

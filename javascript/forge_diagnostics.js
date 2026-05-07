@@ -30,7 +30,8 @@
 
     const VERSION = "v0.2.0";
 
-    let panelVisible = false;
+    let panelState = 'bar';       // 'icon' | 'bar' | 'expanded'
+    let prevMinimizedState = 'bar'; // last non-expanded state
     let panelEl = null;
     let memoryInterval = null;
     let lastDomScan = 0;
@@ -88,7 +89,42 @@
                 if (section) section.style.display = CFG[key] === false ? "none" : "";
             }
         }
+        const defaultState = CFG.default_state || 'bar';
+        setPanelState(defaultState);
     }
+    function setPanelState(newState) {
+        if (!panelEl) return;
+        if (panelState === 'expanded' && newState !== 'expanded') {
+            prevMinimizedState = newState;
+        }
+        panelState = newState;
+        panelEl.classList.remove('state-icon', 'state-bar', 'state-expanded');
+        panelEl.classList.add(`state-${newState}`);
+        updateIconView();
+        render();
+    }
+
+    function updateIconView() {
+        const iconView = document.getElementById("fd-icon-view");
+        if (!iconView) return;
+        const CFG = getConfig();
+        const metric = CFG.icon_metric || "none";
+        if (metric === "none") {
+            iconView.textContent = '🔍';
+        } else if (metric === "errors") {
+            iconView.textContent = String(metrics.errors.length);
+        } else if (metric === "inp") {
+            const last = metrics.inp[metrics.inp.length - 1];
+            iconView.textContent = last ? fmtMs(last.value) : '🔍';
+        } else if (metric === "memory") {
+            const last = metrics.memory[metrics.memory.length - 1];
+            iconView.textContent = last ? String((last.used / 1048576).toFixed(0)) : '🔍';
+        } else if (metric === "fps") {
+            const last = metrics.fps[metrics.fps.length - 1];
+            iconView.textContent = last ? String(last.fps) : '🔍';
+        }
+    }
+
 
     // ------------------------------------------------------------------
     // Console interceptor
@@ -340,7 +376,7 @@
                 metrics.fps.push({ fps, dropped, timestamp: time });
                 if (metrics.fps.length > 60) metrics.fps.shift();
                 updateFpsBadge();
-                if (panelVisible) renderFps();
+                if (panelState === 'expanded') renderFps();
                 frames = 0;
                 dropped = 0;
                 lastTime = time;
@@ -509,25 +545,88 @@
         const css = `
             .sd-webui-diagnostics-panel {
                 position: fixed;
-                bottom: 16px;
-                right: 16px;
-                width: 460px;
-                min-width: 320px;
-                max-width: 90vw;
-                max-height: 70vh;
+                z-index: 10000;
                 background: #0b0f19;
                 border: 1px solid #4b5563;
-                border-radius: 12px;
                 color: #e0e0e0;
                 font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
                 font-size: 12px;
-                z-index: 10000;
                 overflow: hidden;
                 display: flex;
                 flex-direction: column;
                 box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                resize: none;
+            }
+            /* State: icon */
+            .sd-webui-diagnostics-panel.state-icon {
+                width: auto;
+                height: 40px;
+                min-width: 40px;
+                border-radius: 20px;
+                cursor: pointer;
+            }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-header {
+                border-bottom: none;
+                padding: 0 12px;
+                justify-content: center;
+            }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-header h3 { display: none; }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-badges { display: none; }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-icon-view {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 14px;
+                font-weight: 700;
+                gap: 4px;
+                width: 100%;
+                height: 100%;
+            }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-bar-view { display: none; }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-body { display: none; }
+            /* State: bar */
+            .sd-webui-diagnostics-panel.state-bar {
+                width: auto;
+                min-width: 180px;
+                max-width: 320px;
+                height: 44px;
+                border-radius: 8px;
+            }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header {
+                padding: 6px 10px;
+                border-bottom: none;
+            }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 { display: none; }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
+                display: flex;
+                gap: 4px;
+                grid-template-columns: none;
+            }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badge {
+                font-size: 9px;
+                padding: 1px 3px;
+            }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-icon-view { display: none; }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-bar-view { display: none; }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-body { display: none; }
+            /* State: expanded */
+            .sd-webui-diagnostics-panel.state-expanded {
+                width: 460px;
+                min-width: 320px;
+                max-width: 90vw;
+                max-height: 70vh;
+                border-radius: 12px;
                 resize: horizontal;
             }
+            .sd-webui-diagnostics-panel.state-expanded .sd-webui-diagnostics-body {
+                display: block;
+                max-height: 70vh;
+                opacity: 1;
+                padding: 12px 14px;
+            }
+            .sd-webui-diagnostics-panel.state-expanded .sd-webui-diagnostics-icon-view { display: none; }
+            .sd-webui-diagnostics-panel.state-expanded .sd-webui-diagnostics-bar-view { display: none; }
             .sd-webui-diagnostics-header {
                 display: flex;
                 align-items: center;
@@ -568,17 +667,8 @@
             .sd-webui-diagnostics-badge.warn { background: #854d0e; color: #fef9c3; }
             .sd-webui-diagnostics-badge.bad { background: #991b1b; color: #fee2e2; }
             .sd-webui-diagnostics-body {
-                padding: 0 14px;
                 overflow-y: auto;
                 flex: 1;
-                max-height: 0;
-                opacity: 0;
-                transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.25s ease;
-            }
-            .sd-webui-diagnostics-panel.open .sd-webui-diagnostics-body {
-                max-height: 70vh;
-                opacity: 1;
-                padding: 12px 14px;
             }
             .sd-webui-diagnostics-section {
                 margin-bottom: 14px;
@@ -696,9 +786,10 @@
         document.head.appendChild(style);
 
         panelEl = document.createElement("div");
-        panelEl.className = "sd-webui-diagnostics-panel";
+        panelEl.className = "sd-webui-diagnostics-panel state-bar";
         panelEl.innerHTML = `
             <div class="sd-webui-diagnostics-header" id="fd-toggle">
+                <div class="sd-webui-diagnostics-icon-view" id="fd-icon-view">🔍</div>
                 <h3>🔍 SD-WebUI<br>Diagnostics</h3>
                 <div class="sd-webui-diagnostics-badges">
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-inp">INP —</span>
@@ -755,10 +846,11 @@
         `;
         document.body.appendChild(panelEl);
 
-        document.getElementById("fd-toggle").addEventListener("click", () => {
-            panelVisible = !panelVisible;
-            panelEl.classList.toggle("open", panelVisible);
-            render();
+        document.getElementById("fd-toggle").addEventListener("click", (e) => {
+            if (e.target.closest("button, [data-action]")) return;
+            if (panelState === 'icon') setPanelState('bar');
+            else if (panelState === 'bar') setPanelState('expanded');
+            else if (panelState === 'expanded') setPanelState(prevMinimizedState);
         });
 
         document.getElementById("fd-export").addEventListener("click", exportReport);
@@ -804,6 +896,66 @@
                 toggleBuiltins();
             }
         });
+
+        // Drag-and-drop
+        let dragState = { active: false, offsetX: 0, offsetY: 0 };
+        const header = document.getElementById("fd-toggle");
+        header.addEventListener("mousedown", (e) => {
+            if (e.target.closest("button, [data-action]")) return;
+            dragState.active = true;
+            dragState.offsetX = e.clientX - panelEl.getBoundingClientRect().left;
+            dragState.offsetY = e.clientY - panelEl.getBoundingClientRect().top;
+            panelEl.style.transition = 'none';
+            header.style.cursor = 'grabbing';
+        });
+        document.addEventListener("mousemove", (e) => {
+            if (!dragState.active) return;
+            e.preventDefault();
+            let x = e.clientX - dragState.offsetX;
+            let y = e.clientY - dragState.offsetY;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const rect = panelEl.getBoundingClientRect();
+            x = Math.max(0, Math.min(x, vw - rect.width));
+            y = Math.max(0, Math.min(y, vh - rect.height));
+            panelEl.style.left = x + 'px';
+            panelEl.style.top = y + 'px';
+            panelEl.style.bottom = 'auto';
+            panelEl.style.right = 'auto';
+        });
+        document.addEventListener("mouseup", () => {
+            if (!dragState.active) return;
+            dragState.active = false;
+            panelEl.style.transition = '';
+            header.style.cursor = '';
+            const rect = panelEl.getBoundingClientRect();
+            const margin = 16;
+            const snapDist = 40;
+            const corners = [
+                { x: margin, y: margin, label: 'top-left' },
+                { x: window.innerWidth - rect.width - margin, y: margin, label: 'top-right' },
+                { x: margin, y: window.innerHeight - rect.height - margin, label: 'bottom-left' },
+                { x: window.innerWidth - rect.width - margin, y: window.innerHeight - rect.height - margin, label: 'bottom-right' }
+            ];
+            let closest = null, closestDist = Infinity;
+            corners.forEach(c => {
+                const d = Math.hypot(rect.left - c.x, rect.top - c.y);
+                if (d < closestDist && d < snapDist) { closestDist = d; closest = c; }
+            });
+            if (closest) {
+                panelEl.style.left = closest.x + 'px';
+                panelEl.style.top = closest.y + 'px';
+                panelEl.style.bottom = 'auto';
+                panelEl.style.right = 'auto';
+            }
+            localStorage.setItem('sd_diagnostics_pos', JSON.stringify({
+                left: panelEl.style.left,
+                top: panelEl.style.top,
+                right: panelEl.style.right,
+                bottom: panelEl.style.bottom
+            }));
+        });
+
         resetInactivityTimer();
         applyConfig();
     }
@@ -824,7 +976,7 @@
     }
 
     function render() {
-        if (!panelVisible) return;
+        if (panelState !== 'expanded') return;
         renderOverview();
         renderStartup();
         renderHandlers();
@@ -1115,7 +1267,7 @@
         }
         metrics.extensionStatus = status;
         updateExtensionBadge();
-        if (panelVisible) renderExtensionHealth();
+        if (panelState === 'expanded') renderExtensionHealth();
     }
 
     function _renderExtCard(s) {
@@ -1205,6 +1357,7 @@
         badge.textContent = `INP ${fmtMs(v)}`;
         badge.title = `INP: ${fmtMs(v)}`;
         badge.className = "sd-webui-diagnostics-badge " + (v < 200 ? "ok" : v < 500 ? "warn" : "bad");
+        updateIconView();
     }
 
     function updateClsBadge() {
@@ -1220,16 +1373,17 @@
     }
 
     function updateStartupBadge() {
-        if (panelVisible) renderStartup();
+        if (panelState === 'expanded') renderStartup();
     }
 
     function updateHandlerBadge() {
-        if (panelVisible) renderHandlers();
+        if (panelState === 'expanded') renderHandlers();
         updateInpBadge();
     }
 
     function updateMemoryBadge() {
-        if (panelVisible) renderMemory();
+        if (panelState === 'expanded') renderMemory();
+        updateIconView();
     }
 
 
@@ -1259,6 +1413,7 @@
         badge.textContent = last ? `${last.fps} FPS` : "FPS —";
         badge.title = last ? `${last.fps} FPS (${last.dropped} dropped)` : "FPS: —";
         badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.fps >= 50 ? "ok" : last.fps >= 30 ? "warn" : "bad");
+        updateIconView();
     }
 
     function updateResourceBadge() {
@@ -1286,8 +1441,9 @@
         badge.textContent = `${count} err`;
         badge.title = `${count} errors`;
         badge.className = "sd-webui-diagnostics-badge " + (count === 0 ? "ok" : "bad");
-        if (panelVisible) renderErrors();
+        if (panelState === 'expanded') renderErrors();
         analyzeExtensionHealth();
+        updateIconView();
     }
 
     function updateExtensionBadge() {
@@ -1318,10 +1474,9 @@
     // ------------------------------------------------------------------
     function resetInactivityTimer() {
         if (inactivityTimeout) clearTimeout(inactivityTimeout);
-        if (panelVisible) {
+        if (panelState === 'expanded') {
             inactivityTimeout = setTimeout(() => {
-                panelVisible = false;
-                if (panelEl) panelEl.classList.remove("open");
+                setPanelState(prevMinimizedState);
             }, 30000);
         }
     }
@@ -1354,7 +1509,7 @@
         updateResourceBadge();
         updateGradioBadge();
         updateExtensionBadge();
-        if (panelVisible) render();
+        if (panelState === 'expanded') render();
         console.log("[SD-WebUI Diagnostics] Metrics cleared.");
     }
 
@@ -1436,6 +1591,15 @@
         window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
         console.log("[SD-WebUI Diagnostics] Creating panel...");
         createPanel();
+        const savedPos = localStorage.getItem('sd_diagnostics_pos');
+        if (savedPos) {
+            const pos = JSON.parse(savedPos);
+            Object.assign(panelEl.style, pos);
+        } else {
+            const anchor = CFG.position_anchor || 'bottom-right';
+            if (anchor.includes('top')) panelEl.style.top = '16px'; else panelEl.style.bottom = '16px';
+            if (anchor.includes('left')) panelEl.style.left = '16px'; else panelEl.style.right = '16px';
+        }
         startMemoryPolling();
         startDomNodesObserver();
         updateDomNodesBadge();
