@@ -33,7 +33,7 @@
     let panelVisible = false;
     let panelEl = null;
     let memoryInterval = null;
-    let domNodesInterval = null;
+    let lastDomScan = 0;
     let inactivityTimeout = null;
     let fpsRafId = null;
 
@@ -276,73 +276,18 @@
         return result.sort((a, b) => b.count - a.count);
     }
 
-    function updateDomNodes() {
-        const counts = countDomNodesByExtension();
-        metrics.domNodes = counts.map((c) => ({ ...c, timestamp: now() }));
-        if (panelVisible) renderDomNodes();
-        updateDomNodesBadge();
+    function updateDomNodesBadge() {
+        const badge = document.getElementById("fd-badge-dom");
+        if (!badge) return;
+        const total = document.querySelectorAll("*").length;
+        badge.textContent = `${total} nodes`;
+        badge.title = `${total} total DOM nodes`;
+        badge.className = "sd-webui-diagnostics-badge" + (total > 5000 ? " warn" : "");
     }
 
     function startDomNodesObserver() {
-        const extensions = detectExtensions();
-        const extMap = new Map();
-        extensions.forEach((e) => extMap.set(e.toLowerCase(), { name: e, count: 0 }));
-
-        const initial = countDomNodesByExtension();
-        initial.forEach((item) => {
-            extMap.set(item.name.toLowerCase(), { name: item.name, count: item.count });
-        });
-        metrics.domNodes = initial.map((c) => ({ ...c, timestamp: now() }));
+        // Only do a full scan once on init, then keep badge cheap with querySelectorAll
         updateDomNodesBadge();
-
-        const observer = new MutationObserver((mutations) => {
-            let changed = false;
-            for (const mut of mutations) {
-                for (const node of mut.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        const id = (node.id || "").toLowerCase();
-                        const cls = String(node.className || "").toLowerCase();
-                        for (const [lowName, data] of extMap) {
-                            if (id.includes(lowName) || cls.includes(lowName)) {
-                                data.count++;
-                                changed = true;
-                            }
-                        }
-                        const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT);
-                        let child;
-                        while ((child = walker.nextNode())) {
-                            const cid = (child.id || "").toLowerCase();
-                            const ccls = (child.className || "").toLowerCase();
-                            for (const [lowName, data] of extMap) {
-                                if (cid.includes(lowName) || ccls.includes(lowName)) {
-                                    data.count++;
-                                    changed = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (changed) {
-                metrics.domNodes = Array.from(extMap.values())
-                    .map((d) => ({ name: d.name, count: d.count, timestamp: now() }))
-                    .sort((a, b) => b.count - a.count);
-                if (panelVisible) renderDomNodes();
-                updateDomNodesBadge();
-            }
-        });
-
-        observer.observe(document.body, { childList: true, subtree: true });
-        // Full re-scan every 30s to correct drift
-        domNodesInterval = setInterval(() => {
-            const counts = countDomNodesByExtension();
-            counts.forEach((item) => {
-                extMap.set(item.name.toLowerCase(), { name: item.name, count: item.count });
-            });
-            metrics.domNodes = counts.map((c) => ({ ...c, timestamp: now() }));
-            if (panelVisible) renderDomNodes();
-            updateDomNodesBadge();
-        }, 30000);
     }
 
     // ------------------------------------------------------------------
@@ -905,6 +850,13 @@
 
     function renderDomNodes() {
         const el = document.getElementById("fd-domnodes");
+        // Scan on-demand only; throttle to once per 5s
+        const t = now();
+        if (t - lastDomScan > 5000) {
+            lastDomScan = t;
+            const counts = countDomNodesByExtension();
+            metrics.domNodes = counts.map((c) => ({ ...c, timestamp: t }));
+        }
         if (!metrics.domNodes.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extension nodes detected</div>';
             return;
@@ -919,7 +871,7 @@
                 return `<div class="sd-webui-diagnostics-bar">
                     <div class="sd-webui-diagnostics-bar-label" title="${m.name}">${m.name}</div>
                     <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill" style="width:${pct}%"></div></div>
-                    <div class="sd-webui-diagnostics-bar-value">${m.count}</div>
+                    <div class="sd-webui-diagnostics-bar-value">${m.count.toLocaleString()}</div>
                 </div>`;
             })
             .join("");
@@ -1160,14 +1112,7 @@
         if (panelVisible) renderMemory();
     }
 
-    function updateDomNodesBadge() {
-        const badge = document.getElementById("fd-badge-dom");
-        if (!badge) return;
-        const total = metrics.domNodes.reduce((sum, m) => sum + m.count, 0);
-        badge.textContent = `${total} nodes`;
-        badge.title = `${total} DOM nodes`;
-        badge.className = "sd-webui-diagnostics-badge" + (total > 5000 ? " warn" : "");
-    }
+
 
     function updateNetworkBadge() {
         const badge = document.getElementById("fd-badge-net");
@@ -1333,6 +1278,7 @@
         createPanel();
         startMemoryPolling();
         startDomNodesObserver();
+        updateDomNodesBadge();
         startFpsMeter();
         loadBackendState();
         setInterval(loadBackendState, 30000);
