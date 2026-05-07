@@ -28,6 +28,8 @@
         extensionStatus: [],   // {name, loaded, errors, warnings, healthy}
     };
 
+    const VERSION = "v0.2.0";
+
     let panelVisible = false;
     let panelEl = null;
     let memoryInterval = null;
@@ -617,6 +619,14 @@
             .sd-webui-diagnostics-tab-content.active {
                 display: block;
             }
+            .sd-webui-diagnostics-footer {
+                font-size: 10px;
+                color: #6b7280;
+                text-align: right;
+                padding: 8px 14px;
+                border-top: 1px solid #374151;
+                margin-top: 4px;
+            }
         `;
 
         const style = document.createElement("style");
@@ -676,6 +686,7 @@
                 </div>
                 <button class="sd-webui-diagnostics-btn" id="fd-export">📥 Export JSON Report</button>
                 <button class="sd-webui-diagnostics-btn" id="fd-clear" style="background:#374151;margin-top:6px;">🔄 Clear Metrics</button>
+                <div class="sd-webui-diagnostics-footer">SD-WebUI Diagnostics ${VERSION}</div>
             </div>
         `;
         document.body.appendChild(panelEl);
