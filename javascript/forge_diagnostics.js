@@ -586,6 +586,37 @@
                 text-align: center;
                 padding: 8px 0;
             }
+            .sd-webui-diagnostics-tabs {
+                display: flex;
+                gap: 2px;
+                padding: 8px 14px 0;
+                border-bottom: 1px solid #374151;
+                overflow-x: auto;
+            }
+            .sd-webui-diagnostics-tab {
+                padding: 5px 10px;
+                border-radius: 4px 4px 0 0;
+                cursor: pointer;
+                font-size: 11px;
+                font-weight: 600;
+                color: #9ca3af;
+                background: transparent;
+                border: none;
+                white-space: nowrap;
+            }
+            .sd-webui-diagnostics-tab:hover { color: #e0e0e0; }
+            .sd-webui-diagnostics-tab.active {
+                color: #e0e0e0;
+                background: #1f2937;
+                border-bottom: 2px solid #3b82f6;
+            }
+            .sd-webui-diagnostics-tab-content {
+                display: none;
+                padding: 12px 14px;
+            }
+            .sd-webui-diagnostics-tab-content.active {
+                display: block;
+            }
         `;
 
         const style = document.createElement("style");
@@ -611,49 +642,38 @@
                 </div>
             </div>
             <div class="sd-webui-diagnostics-body">
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Startup Time</h4>
-                    <div id="fd-startup">No data yet</div>
+                <div class="sd-webui-diagnostics-tabs">
+                    <button class="sd-webui-diagnostics-tab active" data-tab="overview">Overview</button>
+                    <button class="sd-webui-diagnostics-tab" data-tab="startup">Startup</button>
+                    <button class="sd-webui-diagnostics-tab" data-tab="events">Events</button>
+                    <button class="sd-webui-diagnostics-tab" data-tab="network">Network</button>
+                    <button class="sd-webui-diagnostics-tab" data-tab="performance">Perf</button>
+                    <button class="sd-webui-diagnostics-tab" data-tab="extensions">Extensions</button>
                 </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Slow Event Handlers</h4>
-                    <div id="fd-handlers">No data yet</div>
+                <div class="sd-webui-diagnostics-tab-content active" id="fd-tab-overview">
+                    <div id="fd-overview">No data yet</div>
                 </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Recent Errors</h4>
-                    <div id="fd-errors">No data yet</div>
+                <div class="sd-webui-diagnostics-tab-content" id="fd-tab-startup">
+                    <div class="sd-webui-diagnostics-section"><h4>Startup Time</h4><div id="fd-startup">No data yet</div></div>
                 </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Memory (Chrome)</h4>
-                    <div id="fd-memory">No data yet</div>
+                <div class="sd-webui-diagnostics-tab-content" id="fd-tab-events">
+                    <div class="sd-webui-diagnostics-section"><h4>Slow Event Handlers</h4><div id="fd-handlers">No data yet</div></div>
+                    <div class="sd-webui-diagnostics-section"><h4>Recent Errors</h4><div id="fd-errors">No data yet</div></div>
+                    <div class="sd-webui-diagnostics-section"><h4>Long Tasks</h4><div id="fd-longtasks">No data yet</div></div>
                 </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>DOM Nodes by Extension</h4>
-                    <div id="fd-domnodes">No data yet</div>
+                <div class="sd-webui-diagnostics-tab-content" id="fd-tab-network">
+                    <div class="sd-webui-diagnostics-section"><h4>Network Calls</h4><div id="fd-network">No data yet</div></div>
+                    <div class="sd-webui-diagnostics-section"><h4>Gradio Calls</h4><div id="fd-gradio">No data yet</div></div>
+                    <div class="sd-webui-diagnostics-section"><h4>Resource Loading</h4><div id="fd-resources">No data yet</div></div>
                 </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Network Calls</h4>
-                    <div id="fd-network">No data yet</div>
+                <div class="sd-webui-diagnostics-tab-content" id="fd-tab-performance">
+                    <div class="sd-webui-diagnostics-section"><h4>Memory (Chrome)</h4><div id="fd-memory">No data yet</div></div>
+                    <div class="sd-webui-diagnostics-section"><h4>FPS</h4><div id="fd-fps">No data yet</div></div>
+                    <div class="sd-webui-diagnostics-section"><h4>DOM Nodes by Extension</h4><div id="fd-domnodes">No data yet</div></div>
                 </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Long Tasks</h4>
-                    <div id="fd-longtasks">No data yet</div>
-                </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>FPS</h4>
-                    <div id="fd-fps">No data yet</div>
-                </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Resource Loading</h4>
-                    <div id="fd-resources">No data yet</div>
-                </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Gradio Calls</h4>
-                    <div id="fd-gradio">No data yet</div>
-                </div>
-                <div class="sd-webui-diagnostics-section">
-                    <h4>Extension Health</h4>
-                    <div id="fd-extension-health">No data yet</div>
+                <div class="sd-webui-diagnostics-tab-content" id="fd-tab-extensions">
+                    <div class="sd-webui-diagnostics-section"><h4>Extension Health</h4><div id="fd-extension-health">No data yet</div></div>
+                    <button class="sd-webui-diagnostics-btn" id="fd-reload" style="background:#374151;">🔄 Reload Page</button>
                 </div>
                 <button class="sd-webui-diagnostics-btn" id="fd-export">📥 Export JSON Report</button>
                 <button class="sd-webui-diagnostics-btn" id="fd-clear" style="background:#374151;margin-top:6px;">🔄 Clear Metrics</button>
@@ -669,6 +689,14 @@
 
         document.getElementById("fd-export").addEventListener("click", exportReport);
         document.getElementById("fd-clear").addEventListener("click", clearMetrics);
+        document.getElementById("fd-reload").addEventListener("click", () => location.reload());
+
+        document.querySelectorAll(".sd-webui-diagnostics-tab").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                switchTab(btn.dataset.tab);
+            });
+        });
 
         // Auto-collapse after 30s of inactivity
         panelEl.addEventListener("mousemove", resetInactivityTimer);
@@ -680,8 +708,21 @@
     // ------------------------------------------------------------------
     // Render helpers
     // ------------------------------------------------------------------
+    let activeTab = "overview";
+    function switchTab(tabName) {
+        activeTab = tabName;
+        document.querySelectorAll(".sd-webui-diagnostics-tab").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.tab === tabName);
+        });
+        document.querySelectorAll(".sd-webui-diagnostics-tab-content").forEach((content) => {
+            content.classList.toggle("active", content.id === "fd-tab-" + tabName);
+        });
+        render();
+    }
+
     function render() {
         if (!panelVisible) return;
+        renderOverview();
         renderStartup();
         renderHandlers();
         renderErrors();
@@ -693,6 +734,39 @@
         renderResources();
         renderGradioCalls();
         renderExtensionHealth();
+    }
+
+    function renderOverview() {
+        const el = document.getElementById("fd-overview");
+        const lastFps = metrics.fps[metrics.fps.length - 1];
+        const lastMem = metrics.memory[metrics.memory.length - 1];
+        const lastNet = metrics.network[metrics.network.length - 1];
+        const brokenExts = metrics.extensionStatus.filter((s) => !s.healthy).length;
+        el.innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                <div style="background:#1f2937;padding:8px;border-radius:6px;text-align:center;">
+                    <div style="font-size:10px;color:#9ca3af;">FPS</div>
+                    <div style="font-size:18px;font-weight:700;">${lastFps ? lastFps.fps : "—"}</div>
+                </div>
+                <div style="background:#1f2937;padding:8px;border-radius:6px;text-align:center;">
+                    <div style="font-size:10px;color:#9ca3af;">Memory</div>
+                    <div style="font-size:18px;font-weight:700;">${lastMem ? (lastMem.used / 1048576).toFixed(0) + " MB" : "—"}</div>
+                </div>
+                <div style="background:#1f2937;padding:8px;border-radius:6px;text-align:center;">
+                    <div style="font-size:10px;color:#9ca3af;">Errors</div>
+                    <div style="font-size:18px;font-weight:700;color:${metrics.errors.length ? "#ef4444" : "#dcfce7"};">${metrics.errors.length}</div>
+                </div>
+                <div style="background:#1f2937;padding:8px;border-radius:6px;text-align:center;">
+                    <div style="font-size:10px;color:#9ca3af;">Extensions</div>
+                    <div style="font-size:18px;font-weight:700;color:${brokenExts ? "#ef4444" : "#dcfce7"};">${brokenExts ? brokenExts + " ⚠" : metrics.extensionStatus.length}</div>
+                </div>
+            </div>
+            <div style="font-size:11px;color:#9ca3af;text-align:center;">
+                INP: ${metrics.inp.length ? fmtMs(metrics.inp[metrics.inp.length - 1].value) : "—"} &nbsp;|&nbsp;
+                CLS: ${metrics.cls.toFixed(3)} &nbsp;|&nbsp;
+                Network: ${lastNet ? fmtMs(lastNet.duration) : "—"}
+            </div>
+        `;
     }
 
     function renderStartup() {
@@ -914,15 +988,23 @@
         }
         el.innerHTML = metrics.extensionStatus
             .map((s) => {
-                const cls = s.healthy ? "ok" : s.errors > 0 ? "bad" : "warn";
                 const icon = s.healthy ? "✅" : s.errors > 0 ? "❌" : "⚠️";
-                const detail = s.errors > 0 || s.warnings > 0
-                    ? `(${s.errors} err, ${s.warnings} warn)`
+                const startup = metrics.startup.find((st) => st.name.toLowerCase().includes(s.name.toLowerCase()));
+                const startupTime = startup ? fmtMs(startup.duration) : "—";
+                const domCount = metrics.domNodes.find((d) => d.name === s.name)?.count || 0;
+                const extErrors = metrics.errors.filter((e) => {
+                    const txt = ((e.stack || "") + (e.message || "")).toLowerCase();
+                    return txt.includes(s.name.toLowerCase());
+                });
+                const errorPreview = extErrors.length
+                    ? `<div style="font-size:10px;color:#fca5a5;margin-top:4px;font-family:monospace;">${extErrors[0].message.substring(0, 100)}</div>`
                     : "";
-                return `<div class="sd-webui-diagnostics-bar">
-                    <div class="sd-webui-diagnostics-bar-label">${icon} ${s.name}</div>
-                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill ${cls}" style="width:100%"></div></div>
-                    <div class="sd-webui-diagnostics-bar-value">${detail}</div>
+                return `<div style="background:#1f2937;padding:8px;border-radius:6px;margin-bottom:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                        <div style="font-weight:600;font-size:12px;">${icon} ${s.name}</div>
+                        <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
+                    </div>
+                    ${errorPreview}
                 </div>`;
             })
             .join("");
