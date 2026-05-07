@@ -568,13 +568,16 @@
             }
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-header {
                 border-bottom: none;
-                padding: 0 12px;
+                padding: 0;
                 justify-content: center;
+                position: relative;
+                width: 100%;
+                height: 100%;
             }
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-header h3,
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-badges,
             .sd-webui-diagnostics-panel.state-icon .fd-drag-handle,
-            .sd-webui-diagnostics-panel.state-icon .fd-state-btn { display: none; }
+            .sd-webui-diagnostics-panel.state-icon .fd-state-btn { display: none !important; }
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-icon-view {
                 display: flex;
                 align-items: center;
@@ -582,6 +585,9 @@
                 font-size: 14px;
                 font-weight: 700;
                 gap: 4px;
+                position: absolute;
+                inset: 0;
+                margin: auto;
                 width: 100%;
                 height: 100%;
             }
