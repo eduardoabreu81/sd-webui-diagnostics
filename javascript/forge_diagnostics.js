@@ -525,9 +525,10 @@
             }
             .sd-webui-diagnostics-header h3 {
                 margin: 0;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 600;
-                white-space: nowrap;
+                line-height: 1.3;
+                text-align: center;
             }
             .sd-webui-diagnostics-badges {
                 display: grid;
@@ -552,12 +553,18 @@
             .sd-webui-diagnostics-badge.warn { background: #854d0e; color: #fef9c3; }
             .sd-webui-diagnostics-badge.bad { background: #991b1b; color: #fee2e2; }
             .sd-webui-diagnostics-body {
-                padding: 12px 14px;
+                padding: 0 14px;
                 overflow-y: auto;
                 flex: 1;
-                display: none;
+                max-height: 0;
+                opacity: 0;
+                transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.25s ease;
             }
-            .sd-webui-diagnostics-panel.open .sd-webui-diagnostics-body { display: block; }
+            .sd-webui-diagnostics-panel.open .sd-webui-diagnostics-body {
+                max-height: 70vh;
+                opacity: 1;
+                padding: 12px 14px;
+            }
             .sd-webui-diagnostics-section {
                 margin-bottom: 14px;
             }
@@ -677,7 +684,7 @@
         panelEl.className = "sd-webui-diagnostics-panel";
         panelEl.innerHTML = `
             <div class="sd-webui-diagnostics-header" id="fd-toggle">
-                <h3>🔍 SD-WebUI Diagnostics</h3>
+                <h3>🔍 SD-WebUI<br>Diagnostics</h3>
                 <div class="sd-webui-diagnostics-badges">
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-inp">INP —</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-cls">CLS —</span>
