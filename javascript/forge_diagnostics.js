@@ -956,62 +956,61 @@
             }
         });
 
-        // Drag-and-drop (only via drag handle)
-        let dragState = { active: false, offsetX: 0, offsetY: 0 };
+        // Magnetic corner positioning (dock-like)
+        function applyAnchor(anchor) {
+            const margin = 16;
+            panelEl.style.left = '';
+            panelEl.style.top = '';
+            panelEl.style.right = '';
+            panelEl.style.bottom = '';
+            if (anchor === 'top-left') {
+                panelEl.style.top = margin + 'px';
+                panelEl.style.left = margin + 'px';
+            } else if (anchor === 'top-right') {
+                panelEl.style.top = margin + 'px';
+                panelEl.style.right = margin + 'px';
+            } else if (anchor === 'bottom-left') {
+                panelEl.style.bottom = margin + 'px';
+                panelEl.style.left = margin + 'px';
+            } else {
+                // bottom-right default
+                panelEl.style.bottom = margin + 'px';
+                panelEl.style.right = margin + 'px';
+            }
+        }
+
+        // Drag to swap corners (magnetic snap)
+        let dragState = { active: false, startX: 0, startY: 0 };
         const dragHandle = document.getElementById("fd-drag-handle");
         dragHandle.addEventListener("mousedown", (e) => {
             dragState.active = true;
-            dragState.offsetX = e.clientX - panelEl.getBoundingClientRect().left;
-            dragState.offsetY = e.clientY - panelEl.getBoundingClientRect().top;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
             panelEl.style.transition = 'none';
             dragHandle.style.cursor = 'grabbing';
         });
         document.addEventListener("mousemove", (e) => {
             if (!dragState.active) return;
             e.preventDefault();
-            let x = e.clientX - dragState.offsetX;
-            let y = e.clientY - dragState.offsetY;
             const vw = window.innerWidth;
             const vh = window.innerHeight;
-            const rect = panelEl.getBoundingClientRect();
-            x = Math.max(0, Math.min(x, vw - rect.width));
-            y = Math.max(0, Math.min(y, vh - rect.height));
-            panelEl.style.left = x + 'px';
-            panelEl.style.top = y + 'px';
-            panelEl.style.bottom = 'auto';
-            panelEl.style.right = 'auto';
+            const cx = e.clientX;
+            const cy = e.clientY;
+            // Determine closest corner based on cursor position
+            const isTop = cy < vh / 2;
+            const isLeft = cx < vw / 2;
+            const anchor = (isTop ? 'top' : 'bottom') + '-' + (isLeft ? 'left' : 'right');
+            // Preview: temporarily apply anchor
+            applyAnchor(anchor);
         });
         document.addEventListener("mouseup", () => {
             if (!dragState.active) return;
             dragState.active = false;
             panelEl.style.transition = '';
             dragHandle.style.cursor = '';
-            const rect = panelEl.getBoundingClientRect();
-            const margin = 16;
-            const snapDist = 40;
-            const corners = [
-                { x: margin, y: margin, label: 'top-left' },
-                { x: window.innerWidth - rect.width - margin, y: margin, label: 'top-right' },
-                { x: margin, y: window.innerHeight - rect.height - margin, label: 'bottom-left' },
-                { x: window.innerWidth - rect.width - margin, y: window.innerHeight - rect.height - margin, label: 'bottom-right' }
-            ];
-            let closest = null, closestDist = Infinity;
-            corners.forEach(c => {
-                const d = Math.hypot(rect.left - c.x, rect.top - c.y);
-                if (d < closestDist && d < snapDist) { closestDist = d; closest = c; }
-            });
-            if (closest) {
-                panelEl.style.left = closest.x + 'px';
-                panelEl.style.top = closest.y + 'px';
-                panelEl.style.bottom = 'auto';
-                panelEl.style.right = 'auto';
-            }
-            localStorage.setItem('sd_diagnostics_pos', JSON.stringify({
-                left: panelEl.style.left,
-                top: panelEl.style.top,
-                right: panelEl.style.right,
-                bottom: panelEl.style.bottom
-            }));
+            // Save anchor
+            const currentAnchor = panelEl.style.top ? (panelEl.style.left ? 'top-left' : 'top-right') : (panelEl.style.left ? 'bottom-left' : 'bottom-right');
+            localStorage.setItem('sd_diagnostics_anchor', currentAnchor);
         });
 
         resetInactivityTimer();
@@ -1649,15 +1648,8 @@
         window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
         console.log("[SD-WebUI Diagnostics] Creating panel...");
         createPanel();
-        const savedPos = localStorage.getItem('sd_diagnostics_pos');
-        if (savedPos) {
-            const pos = JSON.parse(savedPos);
-            Object.assign(panelEl.style, pos);
-        } else {
-            const anchor = CFG.position_anchor || 'bottom-right';
-            if (anchor.includes('top')) panelEl.style.top = '16px'; else panelEl.style.bottom = '16px';
-            if (anchor.includes('left')) panelEl.style.left = '16px'; else panelEl.style.right = '16px';
-        }
+        const savedAnchor = localStorage.getItem('sd_diagnostics_anchor') || CFG.position_anchor || 'bottom-right';
+        applyAnchor(savedAnchor);
         startMemoryPolling();
         startDomNodesObserver();
         updateDomNodesBadge();
