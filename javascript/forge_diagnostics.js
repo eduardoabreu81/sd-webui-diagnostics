@@ -261,7 +261,7 @@
         let node;
         while ((node = walker.nextNode())) {
             const id = (node.id || "").toLowerCase();
-            const cls = (node.className || "").toLowerCase();
+            const cls = String(node.className || "").toLowerCase();
             for (const [lowName, data] of extMap) {
                 if (id.includes(lowName) || cls.includes(lowName)) {
                     data.count++;
@@ -301,7 +301,7 @@
                 for (const node of mut.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
                         const id = (node.id || "").toLowerCase();
-                        const cls = (node.className || "").toLowerCase();
+                        const cls = String(node.className || "").toLowerCase();
                         for (const [lowName, data] of extMap) {
                             if (id.includes(lowName) || cls.includes(lowName)) {
                                 data.count++;
@@ -1087,6 +1087,13 @@
         </div>`;
     }
 
+    let showBuiltins = false;
+
+    function toggleBuiltins() {
+        showBuiltins = !showBuiltins;
+        renderExtensionHealth();
+    }
+
     function renderExtensionHealth() {
         const el = document.getElementById("fd-extension-health");
         if (!metrics.extensionStatus.length) {
@@ -1097,11 +1104,17 @@
         const builtin = metrics.extensionStatus.filter((s) => s.is_builtin);
 
         let html = "";
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-size:11px;font-weight:700;color:#e0e0e0;">📦 Installed (${installed.length})</div>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:#9ca3af;">
+                <input type="checkbox" ${showBuiltins ? "checked" : ""} onchange="toggleBuiltins()" style="cursor:pointer;">
+                Show built-ins
+            </label>
+        </div>`;
         if (installed.length) {
-            html += `<div style="font-size:11px;font-weight:700;color:#e0e0e0;margin-bottom:8px;">📦 Installed Extensions (${installed.length})</div>`;
             html += installed.map(_renderExtCard).join("");
         }
-        if (builtin.length) {
+        if (showBuiltins && builtin.length) {
             html += `<div style="font-size:11px;font-weight:700;color:#9ca3af;margin:12px 0 8px;">🔧 Built-in Extensions (${builtin.length})</div>`;
             html += builtin.map(_renderExtCard).join("");
         }
