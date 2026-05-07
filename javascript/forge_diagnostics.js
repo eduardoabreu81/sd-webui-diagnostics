@@ -382,9 +382,24 @@
     // types/options gets wrapped independently.  This prevents Svelte/Gradio
     // from losing event listeners when tabs or components re-bind.
     function _listenerKey(listener, type, options) {
-        const optStr = (typeof options === 'object' && options !== null)
-            ? JSON.stringify(options)
-            : String(options);
+        // Do NOT use JSON.stringify — options may contain cycles or
+        // non-serialisable values (common in Gradio 4 / Svelte internals).
+        let optStr;
+        if (options == null) {
+            optStr = '';
+        } else if (typeof options === 'boolean') {
+            optStr = options ? 'true' : 'false';
+        } else if (typeof options === 'object') {
+            // Only extract the well-known EventListenerOptions fields.
+            // This is safe regardless of cycles or extra properties.
+            const bits = [];
+            if (options.capture) bits.push('capture');
+            if (options.once) bits.push('once');
+            if (options.passive) bits.push('passive');
+            optStr = bits.join(',') || '{}';
+        } else {
+            optStr = String(options);
+        }
         return `${type}::${optStr}`;
     }
 
@@ -490,6 +505,7 @@
     // UI Panel
     // ------------------------------------------------------------------
     function createPanel() {
+        console.log("[SD-WebUI Diagnostics] createPanel() called");
         const css = `
             .sd-webui-diagnostics-panel {
                 position: fixed;
@@ -758,7 +774,36 @@
 
         // Auto-collapse after 30s of inactivity
         panelEl.addEventListener("mousemove", resetInactivityTimer);
-        panelEl.addEventListener("click", resetInactivityTimer);
+        panelEl.addEventListener("click", (e) => {
+            resetInactivityTimer();
+            // Event delegation for dynamically-rendered buttons/checkboxes
+            const target = e.target.closest("[data-action]");
+            if (!target) return;
+            const action = target.dataset.action;
+            if (action === "toggle-builtins") {
+                toggleBuiltins();
+            } else if (action === "reload-backend") {
+                loadBackendState();
+            } else if (action === "reload-page") {
+                if (confirm("Reload the entire WebUI page?")) location.reload();
+            } else if (action === "toggle-startup-errors") {
+                const errEl = document.getElementById(target.dataset.targetId);
+                const count = parseInt(target.dataset.count, 10);
+                if (errEl) {
+                    const isHidden = errEl.style.display === "none";
+                    errEl.style.display = isHidden ? "block" : "none";
+                    target.textContent = (isHidden ? "▼" : "▶") + " " + count + " startup error" + (count > 1 ? "s" : "");
+                }
+            }
+        });
+        panelEl.addEventListener("change", (e) => {
+            const target = e.target.closest("[data-action]");
+            if (!target) return;
+            const action = target.dataset.action;
+            if (action === "toggle-builtins") {
+                toggleBuiltins();
+            }
+        });
         resetInactivityTimer();
         applyConfig();
     }
@@ -1097,11 +1142,7 @@
             const lines = s.startupErrors.map((e) => `• ${e.callback}: ${e.message}`).join("\n");
             startupErrHtml = `
                 <div style="margin-top:6px;">
-                    <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#991b1b;" onclick="
-                        const el = document.getElementById('${errId}');
-                        el.style.display = el.style.display === 'none' ? 'block' : 'none';
-                        this.textContent = el.style.display === 'none' ? '▶ ${startupErrCount} startup error${startupErrCount > 1 ? 's' : ''}' : '▼ ${startupErrCount} startup error${startupErrCount > 1 ? 's' : ''}';
-                    ">▶ ${startupErrCount} startup error${startupErrCount > 1 ? "s" : ""}</button>
+                    <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#991b1b;" data-action="toggle-startup-errors" data-target-id="${errId}" data-count="${startupErrCount}">▶ ${startupErrCount} startup error${startupErrCount > 1 ? "s" : ""}</button>
                     <pre id="${errId}" style="display:none;font-size:9px;color:#fca5a5;background:#1f2937;padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;">${escapeHtml(lines)}</pre>
                 </div>`;
         }
@@ -1110,7 +1151,7 @@
                 <div style="font-weight:600;font-size:12px;">${icon} ${s.name}${versionTag}</div>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
-                    <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#374151;" title="Reloads the entire WebUI page to refresh this extension" onclick="if(confirm('Reload the entire WebUI page?'))location.reload()">🔄 Reload</button>
+                    <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#374151;" title="Reloads the entire WebUI page to refresh this extension" data-action="reload-page">🔄 Reload</button>
                 </div>
             </div>
             ${errorPreview}
@@ -1128,7 +1169,7 @@
     function renderExtensionHealth() {
         const el = document.getElementById("fd-extension-health");
         if (!metrics.extensionStatus.length) {
-            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected. <button class="sd-webui-diagnostics-btn" style="margin-top:6px;" onclick="loadBackendState()">🔄 Retry</button></div>';
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected. <button class="sd-webui-diagnostics-btn" style="margin-top:6px;" data-action="reload-backend">🔄 Retry</button></div>';
             return;
         }
         const installed = metrics.extensionStatus.filter((s) => !s.is_builtin);
@@ -1138,7 +1179,7 @@
         html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div style="font-size:11px;font-weight:700;color:#e0e0e0;">📦 Installed (${installed.length})</div>
             <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:#9ca3af;">
-                <input type="checkbox" ${showBuiltins ? "checked" : ""} onchange="toggleBuiltins()" style="cursor:pointer;">
+                <input type="checkbox" ${showBuiltins ? "checked" : ""} data-action="toggle-builtins" style="cursor:pointer;">
                 Show built-ins
             </label>
         </div>`;
@@ -1354,24 +1395,33 @@
     // Init
     // ------------------------------------------------------------------
     function init() {
-        if (window.__SD_WEBUI_DIAGNOSTICS_INIT__) return;
+        console.log("[SD-WebUI Diagnostics] init() started");
+        if (window.__SD_WEBUI_DIAGNOSTICS_INIT__) {
+            console.log("[SD-WebUI Diagnostics] Already initialized, skipping.");
+            return;
+        }
         window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
 
         const CFG = getConfig();
+        console.log("[SD-WebUI Diagnostics] Config:", CFG);
         if (CFG.enabled === false) {
             console.log("[SD-WebUI Diagnostics] Widget disabled in Settings.");
             return;
         }
         // Only run on the main generation tab (txt2img/img2img), not Settings/Extensions/etc.
         // Forge Neo / Gradio 4 uses different DOM ids, so check for any generation-related container.
+        // NOTE: .gradio-container is intentionally excluded — it exists on every Gradio page.
         const isMainTab = !!(
-            document.querySelector("#tabs, [id*='txt2img'], [id*='img2img'], .gradio-container, .svelte-tabs")
+            document.querySelector("#tabs, [id*='txt2img'], [id*='img2img'], .svelte-tabs")
             || document.getElementById("txt2img_prompt")
             || document.querySelector("[id='txt2img_prompt']")
         );
+        console.log("[SD-WebUI Diagnostics] isMainTab =", isMainTab);
         if (!isMainTab) {
+            console.log("[SD-WebUI Diagnostics] Not on main tab — widget will not render.");
             return;
         }
+        console.log("[SD-WebUI Diagnostics] Creating panel...");
         createPanel();
         startMemoryPolling();
         startDomNodesObserver();
