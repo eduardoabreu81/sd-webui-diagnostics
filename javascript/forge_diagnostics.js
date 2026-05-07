@@ -1002,6 +1002,10 @@
             for (const err of metrics.errors) {
                 const stack = (err.stack || "").toLowerCase();
                 const msg = (err.message || "").toLowerCase();
+                // Don't self-attribute generic console warnings captured by our interceptor
+                if (name === "sd-webui-diagnostics" && !msg.includes("sd-webui-diagnostics")) {
+                    continue;
+                }
                 if (stack.includes(lowerName) || msg.includes(lowerName)) {
                     if (err.type === "error" || err.type === "exception") {
                         errorCount++;
