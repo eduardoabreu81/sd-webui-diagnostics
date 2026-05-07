@@ -973,6 +973,17 @@
             .join("");
     }
 
+    function _isBuiltin(ext) {
+        if (ext.is_builtin !== undefined) return !!ext.is_builtin;
+        const remote = ext.remote || "";
+        const path = ext.path || "";
+        return (
+            !remote
+            || remote === "built-in"
+            || /builtin|built-in|extensions-builtin/i.test(path)
+        );
+    }
+
     function analyzeExtensionHealth() {
         let extensions;
         let useBackend = false;
@@ -1008,6 +1019,7 @@
                 startupMs: useBackend ? ext.startup_ms : null,
                 version: useBackend ? ext.version : null,
                 remote: useBackend ? ext.remote : null,
+                is_builtin: _isBuiltin(ext),
             });
         }
         metrics.extensionStatus = status;
