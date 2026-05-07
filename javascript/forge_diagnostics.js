@@ -571,8 +571,10 @@
                 padding: 0 12px;
                 justify-content: center;
             }
-            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-header h3 { display: none; }
-            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-badges { display: none; }
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-header h3,
+            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-badges,
+            .sd-webui-diagnostics-panel.state-icon .fd-drag-handle,
+            .sd-webui-diagnostics-panel.state-icon .fd-state-btn { display: none; }
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-icon-view {
                 display: flex;
                 align-items: center;
@@ -583,32 +585,38 @@
                 width: 100%;
                 height: 100%;
             }
-            .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-bar-view { display: none; }
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-body { display: none; }
             /* State: bar */
             .sd-webui-diagnostics-panel.state-bar {
                 width: auto;
-                min-width: 180px;
-                max-width: 320px;
+                min-width: 220px;
+                max-width: 420px;
                 height: 44px;
                 border-radius: 8px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header {
-                padding: 6px 10px;
+                padding: 6px 8px;
                 border-bottom: none;
+                gap: 6px;
             }
-            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 { display: none; }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 {
+                font-size: 10px;
+                line-height: 1.2;
+                text-align: left;
+                white-space: nowrap;
+            }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
                 display: flex;
-                gap: 4px;
+                gap: 3px;
                 grid-template-columns: none;
+                flex: 1;
+                min-width: 0;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badge {
                 font-size: 9px;
                 padding: 1px 3px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-icon-view { display: none; }
-            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-bar-view { display: none; }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-body { display: none; }
             /* State: expanded */
             .sd-webui-diagnostics-panel.state-expanded {
@@ -626,7 +634,38 @@
                 padding: 12px 14px;
             }
             .sd-webui-diagnostics-panel.state-expanded .sd-webui-diagnostics-icon-view { display: none; }
-            .sd-webui-diagnostics-panel.state-expanded .sd-webui-diagnostics-bar-view { display: none; }
+            /* Drag handle & state buttons (shared bar/expanded) */
+            .fd-drag-handle {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                gap: 2px;
+                width: 14px;
+                height: 20px;
+                cursor: grab;
+                color: #6b7280;
+                font-size: 10px;
+                line-height: 2px;
+                user-select: none;
+                flex-shrink: 0;
+            }
+            .fd-drag-handle:active { cursor: grabbing; }
+            .fd-state-btn {
+                background: transparent;
+                border: none;
+                color: #9ca3af;
+                font-size: 13px;
+                cursor: pointer;
+                padding: 0 2px;
+                line-height: 1;
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .fd-state-btn:hover { color: #e0e0e0; }
+            .sd-webui-diagnostics-panel.state-expanded #fd-btn-expand { display: none; }
             .sd-webui-diagnostics-header {
                 display: flex;
                 align-items: center;
@@ -789,8 +828,13 @@
         panelEl.className = "sd-webui-diagnostics-panel state-bar";
         panelEl.innerHTML = `
             <div class="sd-webui-diagnostics-header" id="fd-toggle">
+                <!-- Icon-only view -->
                 <div class="sd-webui-diagnostics-icon-view" id="fd-icon-view">🔍</div>
+                <!-- Drag handle -->
+                <div class="fd-drag-handle" id="fd-drag-handle" title="Drag to move">⋮<br>⋮<br>⋮</div>
+                <!-- Title -->
                 <h3>🔍 SD-WebUI<br>Diagnostics</h3>
+                <!-- Badges -->
                 <div class="sd-webui-diagnostics-badges">
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-inp">INP —</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-cls">CLS —</span>
@@ -805,6 +849,9 @@
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-ckpt">—</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-lora">—</span>
                 </div>
+                <!-- State controls -->
+                <button class="fd-state-btn" id="fd-btn-expand" title="Expand">⤢</button>
+                <button class="fd-state-btn" id="fd-btn-collapse" title="Collapse">−</button>
             </div>
             <div class="sd-webui-diagnostics-body">
                 <div class="sd-webui-diagnostics-tabs">
@@ -846,11 +893,23 @@
         `;
         document.body.appendChild(panelEl);
 
+        // Header click toggles between bar <-> expanded (icon is too small, goes to bar)
         document.getElementById("fd-toggle").addEventListener("click", (e) => {
-            if (e.target.closest("button, [data-action]")) return;
+            if (e.target.closest("button, [data-action], .fd-drag-handle")) return;
             if (panelState === 'icon') setPanelState('bar');
             else if (panelState === 'bar') setPanelState('expanded');
             else if (panelState === 'expanded') setPanelState(prevMinimizedState);
+        });
+
+        // Explicit state buttons
+        document.getElementById("fd-btn-expand").addEventListener("click", (e) => {
+            e.stopPropagation();
+            setPanelState('expanded');
+        });
+        document.getElementById("fd-btn-collapse").addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (panelState === 'expanded') setPanelState(prevMinimizedState);
+            else if (panelState === 'bar') setPanelState('icon');
         });
 
         document.getElementById("fd-export").addEventListener("click", exportReport);
@@ -897,16 +956,15 @@
             }
         });
 
-        // Drag-and-drop
+        // Drag-and-drop (only via drag handle)
         let dragState = { active: false, offsetX: 0, offsetY: 0 };
-        const header = document.getElementById("fd-toggle");
-        header.addEventListener("mousedown", (e) => {
-            if (e.target.closest("button, [data-action]")) return;
+        const dragHandle = document.getElementById("fd-drag-handle");
+        dragHandle.addEventListener("mousedown", (e) => {
             dragState.active = true;
             dragState.offsetX = e.clientX - panelEl.getBoundingClientRect().left;
             dragState.offsetY = e.clientY - panelEl.getBoundingClientRect().top;
             panelEl.style.transition = 'none';
-            header.style.cursor = 'grabbing';
+            dragHandle.style.cursor = 'grabbing';
         });
         document.addEventListener("mousemove", (e) => {
             if (!dragState.active) return;
@@ -927,7 +985,7 @@
             if (!dragState.active) return;
             dragState.active = false;
             panelEl.style.transition = '';
-            header.style.cursor = '';
+            dragHandle.style.cursor = '';
             const rect = panelEl.getBoundingClientRect();
             const margin = 16;
             const snapDist = 40;
