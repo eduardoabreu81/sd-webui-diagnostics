@@ -673,7 +673,6 @@
                 </div>
                 <div class="sd-webui-diagnostics-tab-content" id="fd-tab-extensions">
                     <div class="sd-webui-diagnostics-section"><h4>Extension Health</h4><div id="fd-extension-health">No data yet</div></div>
-                    <button class="sd-webui-diagnostics-btn" id="fd-reload" style="background:#374151;">🔄 Reload Page</button>
                 </div>
                 <button class="sd-webui-diagnostics-btn" id="fd-export">📥 Export JSON Report</button>
                 <button class="sd-webui-diagnostics-btn" id="fd-clear" style="background:#374151;margin-top:6px;">🔄 Clear Metrics</button>
@@ -689,7 +688,7 @@
 
         document.getElementById("fd-export").addEventListener("click", exportReport);
         document.getElementById("fd-clear").addEventListener("click", clearMetrics);
-        document.getElementById("fd-reload").addEventListener("click", () => location.reload());
+
 
         document.querySelectorAll(".sd-webui-diagnostics-tab").forEach((btn) => {
             btn.addEventListener("click", (e) => {
@@ -1002,7 +1001,10 @@
                 return `<div style="background:#1f2937;padding:8px;border-radius:6px;margin-bottom:6px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                         <div style="font-weight:600;font-size:12px;">${icon} ${s.name}</div>
-                        <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
+                            <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#374151;" title="Reloads the entire WebUI page to refresh this extension" onclick="if(confirm('Reload the entire WebUI page?'))location.reload()">🔄 Reload</button>
+                        </div>
                     </div>
                     ${errorPreview}
                 </div>`;
