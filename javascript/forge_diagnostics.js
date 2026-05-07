@@ -979,38 +979,50 @@
             }
         }
 
-        // Drag to swap corners (magnetic snap)
-        let dragState = { active: false, startX: 0, startY: 0 };
+        // Drag: widget follows mouse, snaps to nearest corner on release
+        let dragState = { active: false, offsetX: 0, offsetY: 0 };
         const dragHandle = document.getElementById("fd-drag-handle");
         dragHandle.addEventListener("mousedown", (e) => {
             dragState.active = true;
-            dragState.startX = e.clientX;
-            dragState.startY = e.clientY;
+            const rect = panelEl.getBoundingClientRect();
+            dragState.offsetX = e.clientX - rect.left;
+            dragState.offsetY = e.clientY - rect.top;
             panelEl.style.transition = 'none';
+            // Switch from anchored positioning to absolute tracking
+            panelEl.style.left = rect.left + 'px';
+            panelEl.style.top = rect.top + 'px';
+            panelEl.style.right = 'auto';
+            panelEl.style.bottom = 'auto';
             dragHandle.style.cursor = 'grabbing';
         });
         document.addEventListener("mousemove", (e) => {
             if (!dragState.active) return;
             e.preventDefault();
+            let x = e.clientX - dragState.offsetX;
+            let y = e.clientY - dragState.offsetY;
+            // Clamp to viewport
             const vw = window.innerWidth;
             const vh = window.innerHeight;
-            const cx = e.clientX;
-            const cy = e.clientY;
-            // Determine closest corner based on cursor position
-            const isTop = cy < vh / 2;
-            const isLeft = cx < vw / 2;
-            const anchor = (isTop ? 'top' : 'bottom') + '-' + (isLeft ? 'left' : 'right');
-            // Preview: temporarily apply anchor
-            applyAnchor(anchor);
+            const rect = panelEl.getBoundingClientRect();
+            x = Math.max(0, Math.min(x, vw - rect.width));
+            y = Math.max(0, Math.min(y, vh - rect.height));
+            panelEl.style.left = x + 'px';
+            panelEl.style.top = y + 'px';
         });
         document.addEventListener("mouseup", () => {
             if (!dragState.active) return;
             dragState.active = false;
             panelEl.style.transition = '';
             dragHandle.style.cursor = '';
-            // Save anchor
-            const currentAnchor = panelEl.style.top ? (panelEl.style.left ? 'top-left' : 'top-right') : (panelEl.style.left ? 'bottom-left' : 'bottom-right');
-            localStorage.setItem('sd_diagnostics_anchor', currentAnchor);
+            // Snap to nearest corner
+            const rect = panelEl.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const anchor = (cy < vh / 2 ? 'top' : 'bottom') + '-' + (cx < vw / 2 ? 'left' : 'right');
+            applyAnchor(anchor);
+            localStorage.setItem('sd_diagnostics_anchor', anchor);
         });
 
         resetInactivityTimer();
