@@ -32,6 +32,7 @@ _SETTINGS = [
 # Tracer: monkey-patch script_callbacks to measure per-extension startup time
 # ------------------------------------------------------------------------------
 _extension_timings = {}  # {ext_name: {"total_ms": float, "callbacks": int}}
+_extension_errors = {}     # {ext_name: [{"type", "message", "traceback", "callback"}]}
 
 
 def _module_to_extension(module_name: str) -> str:
@@ -42,8 +43,22 @@ def _module_to_extension(module_name: str) -> str:
     return parts[1] if len(parts) > 1 else "unknown"
 
 
+def _record_error(ext, callback, exc):
+    """Record a startup error for an extension."""
+    tb = traceback.format_exc()
+    entry = _extension_errors.setdefault(ext, [])
+    entry.append(
+        {
+            "type": "error",
+            "message": str(exc),
+            "traceback": tb,
+            "callback": getattr(callback, "__name__", "unknown"),
+        }
+    )
+
+
 def _timed_wrapper(callback):
-    """Wrap a single callback to record its execution time."""
+    """Wrap a single callback to record its execution time and errors."""
     mod = getattr(callback, "__module__", "")
     ext = _module_to_extension(mod)
 
@@ -51,6 +66,9 @@ def _timed_wrapper(callback):
         t0 = time.time()
         try:
             return callback(*args, **kwargs)
+        except Exception as exc:
+            _record_error(ext, callback, exc)
+            raise
         finally:
             elapsed = (time.time() - t0) * 1000
             entry = _extension_timings.setdefault(ext, {"total_ms": 0.0, "callbacks": 0})
@@ -81,7 +99,8 @@ def _install_callback_tracer():
                         result = c(*args, **kwargs)
                         if result is not None:
                             yield result
-                    except Exception:
+                    except Exception as exc:
+                        _record_error(ext, c, exc)
                         raise
                     finally:
                         elapsed = (time.time() - t0) * 1000
@@ -171,6 +190,7 @@ def _get_extensions():
                     "branch": getattr(ext, "branch", None),
                     "startup_ms": round(timing["total_ms"], 1),
                     "callbacks": timing["callbacks"],
+                    "startup_errors": _extension_errors.get(name, []),
                     "is_builtin": is_builtin,
                 }
             )

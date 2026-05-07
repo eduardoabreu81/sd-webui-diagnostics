@@ -42,6 +42,7 @@
     // ------------------------------------------------------------------
     const now = () => performance.now();
     const fmtMs = (n) => (n < 1000 ? `${n.toFixed(0)} ms` : `${(n / 1000).toFixed(2)} s`);
+    const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     function getConfig() {
         return window.SD_WEBUI_DIAGNOSTICS_CONFIG || {};
@@ -1023,6 +1024,7 @@
                 startupMs: useBackend ? ext.startup_ms : null,
                 version: useBackend ? ext.version : null,
                 remote: useBackend ? ext.remote : null,
+                startupErrors: useBackend ? (ext.startup_errors || []) : [],
                 is_builtin: _isBuiltin(ext),
             });
         }
@@ -1043,6 +1045,21 @@
         const errorPreview = extErrors.length
             ? `<div style="font-size:10px;color:#fca5a5;margin-top:4px;font-family:monospace;">${extErrors[0].message.substring(0, 100)}</div>`
             : "";
+        const startupErrCount = s.startupErrors ? s.startupErrors.length : 0;
+        let startupErrHtml = "";
+        if (startupErrCount > 0) {
+            const errId = "fd-se-" + s.name.replace(/[^a-z0-9]/gi, "_");
+            const lines = s.startupErrors.map((e) => `• ${e.callback}: ${e.message}`).join("\n");
+            startupErrHtml = `
+                <div style="margin-top:6px;">
+                    <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#991b1b;" onclick="
+                        const el = document.getElementById('${errId}');
+                        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                        this.textContent = el.style.display === 'none' ? '▶ ${startupErrCount} startup error${startupErrCount > 1 ? 's' : ''}' : '▼ ${startupErrCount} startup error${startupErrCount > 1 ? 's' : ''}';
+                    ">▶ ${startupErrCount} startup error${startupErrCount > 1 ? "s" : ""}</button>
+                    <pre id="${errId}" style="display:none;font-size:9px;color:#fca5a5;background:#1f2937;padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;">${escapeHtml(lines)}</pre>
+                </div>`;
+        }
         return `<div style="background:#1f2937;padding:8px;border-radius:6px;margin-bottom:6px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                 <div style="font-weight:600;font-size:12px;">${icon} ${s.name}${versionTag}</div>
@@ -1052,6 +1069,7 @@
                 </div>
             </div>
             ${errorPreview}
+            ${startupErrHtml}
         </div>`;
     }
 
