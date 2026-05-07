@@ -199,7 +199,35 @@
     // ------------------------------------------------------------------
     // DOM nodes by extension
     // ------------------------------------------------------------------
+    let backendExtensions = [];
+    let backendStateLoaded = false;
+
+    async function loadBackendState() {
+        try {
+            const res = await fetch("/sd-webui-diagnostics/api/state");
+            if (res.ok) {
+                const data = await res.json();
+                backendExtensions = data.extensions || [];
+                backendStateLoaded = true;
+                analyzeExtensionHealth();
+                return;
+            }
+        } catch (e) {
+            // Endpoint unavailable, try static fallback
+        }
+        const fallback = window.SD_WEBUI_DIAGNOSTICS_STATE;
+        if (fallback && fallback.extensions) {
+            backendExtensions = fallback.extensions;
+            backendStateLoaded = true;
+            analyzeExtensionHealth();
+        }
+    }
+
     function detectExtensions() {
+        if (backendStateLoaded && backendExtensions.length) {
+            return backendExtensions.map((e) => e.name);
+        }
+        // Fallback: heuristic from DOM script tags
         const scripts = Array.from(document.querySelectorAll('script[src*="/extensions/"]'));
         const exts = new Set();
         scripts.forEach((s) => {
@@ -966,10 +994,18 @@
     }
 
     function analyzeExtensionHealth() {
-        const extensions = detectExtensions();
+        let extensions;
+        let useBackend = false;
+        if (backendStateLoaded && backendExtensions.length) {
+            extensions = backendExtensions;
+            useBackend = true;
+        } else {
+            extensions = detectExtensions().map((name) => ({ name }));
+        }
         const status = [];
         for (const ext of extensions) {
-            const lowerName = ext.toLowerCase();
+            const name = ext.name || ext;
+            const lowerName = name.toLowerCase();
             let errorCount = 0;
             let warnCount = 0;
             for (const err of metrics.errors) {
@@ -984,11 +1020,14 @@
                 }
             }
             status.push({
-                name: ext,
-                loaded: true,
+                name: name,
+                loaded: useBackend ? ext.enabled !== false : true,
                 errors: errorCount,
                 warnings: warnCount,
                 healthy: errorCount === 0 && warnCount === 0,
+                startupMs: useBackend ? ext.startup_ms : null,
+                version: useBackend ? ext.version : null,
+                remote: useBackend ? ext.remote : null,
             });
         }
         metrics.extensionStatus = status;
@@ -999,15 +1038,15 @@
     function renderExtensionHealth() {
         const el = document.getElementById("fd-extension-health");
         if (!metrics.extensionStatus.length) {
-            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected</div>';
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected. <button class="sd-webui-diagnostics-btn" style="margin-top:6px;" onclick="loadBackendState()">🔄 Retry</button></div>';
             return;
         }
         el.innerHTML = metrics.extensionStatus
             .map((s) => {
                 const icon = s.healthy ? "✅" : s.errors > 0 ? "❌" : "⚠️";
-                const startup = metrics.startup.find((st) => st.name.toLowerCase().includes(s.name.toLowerCase()));
-                const startupTime = startup ? fmtMs(startup.duration) : "—";
+                const startupTime = s.startupMs ? fmtMs(s.startupMs) : "—";
                 const domCount = metrics.domNodes.find((d) => d.name === s.name)?.count || 0;
+                const versionTag = s.version ? `<span style="font-size:9px;color:#6b7280;margin-left:4px;">${s.version}</span>` : "";
                 const extErrors = metrics.errors.filter((e) => {
                     const txt = ((e.stack || "") + (e.message || "")).toLowerCase();
                     return txt.includes(s.name.toLowerCase());
@@ -1017,7 +1056,7 @@
                     : "";
                 return `<div style="background:#1f2937;padding:8px;border-radius:6px;margin-bottom:6px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                        <div style="font-weight:600;font-size:12px;">${icon} ${s.name}</div>
+                        <div style="font-weight:600;font-size:12px;">${icon} ${s.name}${versionTag}</div>
                         <div style="display:flex;gap:6px;align-items:center;">
                             <div style="font-size:10px;color:#9ca3af;">${startupTime} · ${domCount} nodes · ${s.errors} err · ${s.warnings} warn</div>
                             <button class="sd-webui-diagnostics-btn" style="padding:3px 8px;font-size:10px;background:#374151;" title="Reloads the entire WebUI page to refresh this extension" onclick="if(confirm('Reload the entire WebUI page?'))location.reload()">🔄 Reload</button>
@@ -1218,7 +1257,8 @@
         startMemoryPolling();
         startDomNodesObserver();
         startFpsMeter();
-        analyzeExtensionHealth();
+        loadBackendState();
+        setInterval(loadBackendState, 30000);
         console.log("[SD-WebUI Diagnostics] Profiler active. Click the 🔍 pill to open the panel.");
     }
 
