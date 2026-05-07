@@ -1002,7 +1002,7 @@
             let warnCount = 0;
             for (const err of metrics.errors) {
                 const stack = (err.stack || "").toLowerCase();
-                const msg = (err.message || "").toLowerCase();
+                const msg = String(err.message || "").toLowerCase();
                 // Don't self-attribute generic console warnings captured by our interceptor
                 if (name === "sd-webui-diagnostics" && !msg.includes("sd-webui-diagnostics")) {
                     continue;
