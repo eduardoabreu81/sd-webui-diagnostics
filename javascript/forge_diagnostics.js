@@ -1363,7 +1363,12 @@
             return;
         }
         // Only run on the main generation tab (txt2img/img2img), not Settings/Extensions/etc.
-        const isMainTab = !!(document.querySelector("#tabs") || document.getElementById("txt2img_prompt"));
+        // Forge Neo / Gradio 4 uses different DOM ids, so check for any generation-related container.
+        const isMainTab = !!(
+            document.querySelector("#tabs, [id*='txt2img'], [id*='img2img'], .gradio-container, .svelte-tabs")
+            || document.getElementById("txt2img_prompt")
+            || document.querySelector("[id='txt2img_prompt']")
+        );
         if (!isMainTab) {
             return;
         }
