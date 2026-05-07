@@ -1394,33 +1394,46 @@
     // ------------------------------------------------------------------
     // Init
     // ------------------------------------------------------------------
+    let _initAttempts = 0;
+    const MAX_INIT_ATTEMPTS = 30; // 15 seconds max (500ms interval)
+
     function init() {
-        console.log("[SD-WebUI Diagnostics] init() started");
+        console.log("[SD-WebUI Diagnostics] init() started (attempt " + (_initAttempts + 1) + ")");
         if (window.__SD_WEBUI_DIAGNOSTICS_INIT__) {
             console.log("[SD-WebUI Diagnostics] Already initialized, skipping.");
             return;
         }
-        window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
 
         const CFG = getConfig();
         console.log("[SD-WebUI Diagnostics] Config:", CFG);
         if (CFG.enabled === false) {
             console.log("[SD-WebUI Diagnostics] Widget disabled in Settings.");
+            window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true; // Mark as done so we don't retry
             return;
         }
         // Only run on the main generation tab (txt2img/img2img), not Settings/Extensions/etc.
-        // Forge Neo / Gradio 4 uses different DOM ids, so check for any generation-related container.
+        // Forge Neo / Gradio 4 renders DOM asynchronously, so we retry until elements appear.
         // NOTE: .gradio-container is intentionally excluded — it exists on every Gradio page.
         const isMainTab = !!(
             document.querySelector("#tabs, [id*='txt2img'], [id*='img2img'], .svelte-tabs")
             || document.getElementById("txt2img_prompt")
             || document.querySelector("[id='txt2img_prompt']")
+            || document.querySelector("[name='txt2img_prompt']")
         );
         console.log("[SD-WebUI Diagnostics] isMainTab =", isMainTab);
         if (!isMainTab) {
-            console.log("[SD-WebUI Diagnostics] Not on main tab — widget will not render.");
+            _initAttempts++;
+            if (_initAttempts < MAX_INIT_ATTEMPTS) {
+                console.log("[SD-WebUI Diagnostics] DOM not ready yet, retrying in 500ms...");
+                setTimeout(init, 500);
+            } else {
+                console.log("[SD-WebUI Diagnostics] Max init attempts reached. Widget will not render.");
+                window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true; // Mark as done
+            }
             return;
         }
+
+        window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
         console.log("[SD-WebUI Diagnostics] Creating panel...");
         createPanel();
         startMemoryPolling();
@@ -1432,7 +1445,7 @@
         console.log("[SD-WebUI Diagnostics] Profiler active. Click the 🔍 pill to open the panel.");
     }
 
-    // Wait for Gradio root to be ready
+    // Wait for Gradio root to be ready, then start retry loop
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", init);
     } else {
