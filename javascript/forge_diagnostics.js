@@ -60,6 +60,8 @@
             "fd-badge-gradio": "show_gradio",
             "fd-badge-err": "show_err",
             "fd-badge-ext": "show_extension_health",
+            "fd-badge-ckpt": "show_extension_health",
+            "fd-badge-lora": "show_extension_health",
         };
         for (const [id, key] of Object.entries(badges)) {
             const el = document.getElementById(id);
@@ -201,6 +203,7 @@
     // ------------------------------------------------------------------
     let backendExtensions = [];
     let backendStateLoaded = false;
+    let modelCounts = { checkpoints: 0, loras: 0 };
 
     async function loadBackendState() {
         try {
@@ -208,18 +211,28 @@
             if (res.ok) {
                 const data = await res.json();
                 backendExtensions = data.extensions || [];
+                modelCounts = data.models || { checkpoints: 0, loras: 0 };
                 backendStateLoaded = true;
                 analyzeExtensionHealth();
+                updateCheckpointBadge();
+                updateLoraBadge();
                 return;
             }
         } catch (e) {
             // Endpoint unavailable, try static fallback
         }
         const fallback = window.SD_WEBUI_DIAGNOSTICS_STATE;
-        if (fallback && fallback.extensions) {
-            backendExtensions = fallback.extensions;
-            backendStateLoaded = true;
-            analyzeExtensionHealth();
+        if (fallback) {
+            if (fallback.extensions) {
+                backendExtensions = fallback.extensions;
+                backendStateLoaded = true;
+                analyzeExtensionHealth();
+            }
+            if (fallback.models) {
+                modelCounts = fallback.models;
+                updateCheckpointBadge();
+                updateLoraBadge();
+            }
         }
     }
 
@@ -696,6 +709,8 @@
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-gradio">—</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-err">0 err</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-ext">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-ckpt">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-lora">—</span>
                 </div>
             </div>
             <div class="sd-webui-diagnostics-body">
@@ -1204,6 +1219,20 @@
         badge.textContent = `${metrics.extensionStatus.length} ext`;
         badge.title = `${metrics.extensionStatus.length} extensions (${broken} with issues)`;
         badge.className = "sd-webui-diagnostics-badge " + (broken === 0 ? "ok" : "bad");
+    }
+
+    function updateCheckpointBadge() {
+        const badge = document.getElementById("fd-badge-ckpt");
+        if (!badge) return;
+        badge.textContent = `${modelCounts.checkpoints} ckpt`;
+        badge.title = `${modelCounts.checkpoints} checkpoints`;
+    }
+
+    function updateLoraBadge() {
+        const badge = document.getElementById("fd-badge-lora");
+        if (!badge) return;
+        badge.textContent = `${modelCounts.loras} lora`;
+        badge.title = `${modelCounts.loras} LoRAs`;
     }
 
     // ------------------------------------------------------------------

@@ -138,7 +138,6 @@ def _get_extensions():
 
         ext_list = getattr(extensions, "extensions", None)
         if ext_list is None:
-            # Fallback: some variants store extensions differently
             ext_list = getattr(extensions, "extension_list", None)
         if ext_list is None:
             return []
@@ -149,7 +148,6 @@ def _get_extensions():
                 continue
             name = getattr(ext, "name", None)
             if not name:
-                # Try folder name from path
                 path = getattr(ext, "path", "")
                 name = os.path.basename(path) or "unknown"
             timing = _extension_timings.get(name, {"total_ms": 0.0, "callbacks": 0})
@@ -179,6 +177,31 @@ def _get_extensions():
         return []
 
 
+def _count_models(subfolder, extensions):
+    """Count model files in a subfolder of the models directory."""
+    try:
+        import glob
+        from modules import paths
+
+        base = getattr(paths, "models_path", "models")
+        folder = os.path.join(base, subfolder)
+        if not os.path.isdir(folder):
+            return 0
+        count = 0
+        for ext in extensions:
+            count += len(glob.glob(os.path.join(folder, f"**/*{ext}"), recursive=True))
+        return count
+    except Exception:
+        return 0
+
+
+def _get_model_counts():
+    return {
+        "checkpoints": _count_models("Stable-diffusion", [".safetensors", ".ckpt"]),
+        "loras": _count_models("Lora", [".safetensors", ".ckpt"]),
+    }
+
+
 # ------------------------------------------------------------------------------
 # JS file writers (fallback when endpoint is unavailable)
 # ------------------------------------------------------------------------------
@@ -201,7 +224,7 @@ def _write_config_js():
 def _write_state_js():
     """Write current extension state to a JS file for frontend fallback."""
     try:
-        state = {"extensions": _get_extensions()}
+        state = {"extensions": _get_extensions(), "models": _get_model_counts()}
         js = f"window.SD_WEBUI_DIAGNOSTICS_STATE = {json.dumps(state, indent=2)};\n"
         with open(_STATE_JS_PATH, "w", encoding="utf-8") as f:
             f.write(js)
@@ -233,6 +256,7 @@ try:
                 return JSONResponse(
                     {
                         "extensions": _get_extensions(),
+                        "models": _get_model_counts(),
                         "traced": len(_extension_timings) > 0,
                     }
                 )
