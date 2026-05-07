@@ -25,6 +25,7 @@
         fps: [],              // {fps, dropped, timestamp}
         resources: [],        // {name, type, duration, transferSize, timestamp}
         gradioCalls: [],      // {url, method, duration, status, timestamp}
+        extensionStatus: [],   // {name, loaded, errors, warnings, healthy}
     };
 
     let panelVisible = false;
@@ -39,6 +40,50 @@
     // ------------------------------------------------------------------
     const now = () => performance.now();
     const fmtMs = (n) => (n < 1000 ? `${n.toFixed(0)} ms` : `${(n / 1000).toFixed(2)} s`);
+
+    function getConfig() {
+        return window.SD_WEBUI_DIAGNOSTICS_CONFIG || {};
+    }
+
+    function applyConfig() {
+        const CFG = getConfig();
+        const badges = {
+            "fd-badge-inp": "show_inp",
+            "fd-badge-cls": "show_cls",
+            "fd-badge-dom": "show_dom",
+            "fd-badge-net": "show_net",
+            "fd-badge-lt": "show_lt",
+            "fd-badge-fps": "show_fps",
+            "fd-badge-res": "show_res",
+            "fd-badge-gradio": "show_gradio",
+            "fd-badge-err": "show_err",
+            "fd-badge-ext": "show_extension_health",
+        };
+        for (const [id, key] of Object.entries(badges)) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = CFG[key] === false ? "none" : "";
+        }
+        const sections = {
+            "fd-startup": "show_startup",
+            "fd-handlers": "show_handlers",
+            "fd-errors": "show_errors",
+            "fd-memory": "show_memory",
+            "fd-domnodes": "show_domnodes",
+            "fd-network": "show_network",
+            "fd-longtasks": "show_longtasks",
+            "fd-fps": "show_fps_tab",
+            "fd-resources": "show_resources",
+            "fd-gradio": "show_gradio_tab",
+            "fd-extension-health": "show_extension_health",
+        };
+        for (const [id, key] of Object.entries(sections)) {
+            const el = document.getElementById(id);
+            if (el) {
+                const section = el.closest(".sd-webui-diagnostics-section");
+                if (section) section.style.display = CFG[key] === false ? "none" : "";
+            }
+        }
+    }
 
     // ------------------------------------------------------------------
     // Console interceptor
@@ -562,6 +607,7 @@
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-res">—</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-gradio">—</span>
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-err">0 err</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-ext">—</span>
                 </div>
             </div>
             <div class="sd-webui-diagnostics-body">
@@ -605,6 +651,10 @@
                     <h4>Gradio Calls</h4>
                     <div id="fd-gradio">No data yet</div>
                 </div>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>Extension Health</h4>
+                    <div id="fd-extension-health">No data yet</div>
+                </div>
                 <button class="sd-webui-diagnostics-btn" id="fd-export">📥 Export JSON Report</button>
                 <button class="sd-webui-diagnostics-btn" id="fd-clear" style="background:#374151;margin-top:6px;">🔄 Clear Metrics</button>
             </div>
@@ -624,6 +674,7 @@
         panelEl.addEventListener("mousemove", resetInactivityTimer);
         panelEl.addEventListener("click", resetInactivityTimer);
         resetInactivityTimer();
+        applyConfig();
     }
 
     // ------------------------------------------------------------------
@@ -641,6 +692,7 @@
         renderFps();
         renderResources();
         renderGradioCalls();
+        renderExtensionHealth();
     }
 
     function renderStartup() {
@@ -823,6 +875,59 @@
             .join("");
     }
 
+    function analyzeExtensionHealth() {
+        const extensions = detectExtensions();
+        const status = [];
+        for (const ext of extensions) {
+            const lowerName = ext.toLowerCase();
+            let errorCount = 0;
+            let warnCount = 0;
+            for (const err of metrics.errors) {
+                const stack = (err.stack || "").toLowerCase();
+                const msg = (err.message || "").toLowerCase();
+                if (stack.includes(lowerName) || msg.includes(lowerName)) {
+                    if (err.type === "error" || err.type === "exception") {
+                        errorCount++;
+                    } else {
+                        warnCount++;
+                    }
+                }
+            }
+            status.push({
+                name: ext,
+                loaded: true,
+                errors: errorCount,
+                warnings: warnCount,
+                healthy: errorCount === 0 && warnCount === 0,
+            });
+        }
+        metrics.extensionStatus = status;
+        updateExtensionBadge();
+        if (panelVisible) renderExtensionHealth();
+    }
+
+    function renderExtensionHealth() {
+        const el = document.getElementById("fd-extension-health");
+        if (!metrics.extensionStatus.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected</div>';
+            return;
+        }
+        el.innerHTML = metrics.extensionStatus
+            .map((s) => {
+                const cls = s.healthy ? "ok" : s.errors > 0 ? "bad" : "warn";
+                const icon = s.healthy ? "✅" : s.errors > 0 ? "❌" : "⚠️";
+                const detail = s.errors > 0 || s.warnings > 0
+                    ? `(${s.errors} err, ${s.warnings} warn)`
+                    : "";
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label">${icon} ${s.name}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill ${cls}" style="width:100%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${detail}</div>
+                </div>`;
+            })
+            .join("");
+    }
+
     // ------------------------------------------------------------------
     // Badge updaters (lightweight, run often)
     // ------------------------------------------------------------------
@@ -915,6 +1020,15 @@
         badge.textContent = `${count} err`;
         badge.className = "sd-webui-diagnostics-badge " + (count === 0 ? "ok" : "bad");
         if (panelVisible) renderErrors();
+        analyzeExtensionHealth();
+    }
+
+    function updateExtensionBadge() {
+        const badge = document.getElementById("fd-badge-ext");
+        if (!badge) return;
+        const broken = metrics.extensionStatus.filter((s) => !s.healthy).length;
+        badge.textContent = `${metrics.extensionStatus.length} ext`;
+        badge.className = "sd-webui-diagnostics-badge " + (broken === 0 ? "ok" : "bad");
     }
 
     // ------------------------------------------------------------------
@@ -947,6 +1061,7 @@
         metrics.fps.length = 0;
         metrics.resources.length = 0;
         metrics.gradioCalls.length = 0;
+        metrics.extensionStatus.length = 0;
         updateInpBadge();
         updateClsBadge();
         updateErrorBadge();
@@ -956,6 +1071,7 @@
         updateFpsBadge();
         updateResourceBadge();
         updateGradioBadge();
+        updateExtensionBadge();
         if (panelVisible) render();
         console.log("[SD-WebUI Diagnostics] Metrics cleared.");
     }
@@ -982,6 +1098,7 @@
                 fps: metrics.fps,
                 resources: metrics.resources,
                 gradioCalls: metrics.gradioCalls,
+                extensionStatus: metrics.extensionStatus,
             },
         };
         const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
@@ -1000,6 +1117,7 @@
         startMemoryPolling();
         startDomNodesObserver();
         startFpsMeter();
+        analyzeExtensionHealth();
         console.log("[SD-WebUI Diagnostics] Profiler active. Click the 🔍 pill to open the panel.");
     }
 
