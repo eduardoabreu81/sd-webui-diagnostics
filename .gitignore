@@ -1,0 +1,11 @@
+# Development / agent files
+AGENTS.md
+.specstory/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node / JS
+node_modules/

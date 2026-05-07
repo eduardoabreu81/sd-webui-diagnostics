@@ -1,7 +1,7 @@
 """
-Forge Diagnostics — Backend registration for Forge Neo.
+SD-WebUI Diagnostics — Backend registration for SD WebUI.
 
-This module registers the extension so Forge Neo loads the frontend JS.
+This module registers the extension so the WebUI loads the frontend JS.
 No settings, no endpoints, no state.
 """
 

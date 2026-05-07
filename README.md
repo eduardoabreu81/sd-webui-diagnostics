@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔍 Forge Diagnostics
+# 🔍 SD-WebUI Diagnostics
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -14,7 +14,7 @@
 
 ## What is this?
 
-Forge Diagnostics is a browser-side extension that lives inside your Forge Neo WebUI and measures, in real time, what is making the interface slow. It answers questions like:
+SD-WebUI Diagnostics is a browser-side extension that lives inside your Stable Diffusion WebUI and measures, in real time, what is making the interface slow. It answers questions like:
 
 - "Which extension is blocking the prompt box for 8 seconds?"
 - "How much memory is each extension eating?"
@@ -40,7 +40,7 @@ It does **not** touch Python, CUDA, or model inference. It only looks at the **f
 
 ## How it works
 
-Forge Diagnostics is injected into the Gradio page like any other extension. It works by wrapping the standard WebUI hooks and browser APIs with lightweight timers:
+SD-WebUI Diagnostics is injected into the Gradio page like any other extension. It works by wrapping the standard WebUI hooks and browser APIs with lightweight timers:
 
 1. **Intercept startup hooks** — wraps `onUiLoaded`, `onUiUpdate`, and the Gradio mutation observer so it knows when each extension starts and finishes initializing.
 2. **Wrap event listeners** — wraps `addEventListener` on key targets (prompt textareas, buttons, sliders) to measure how long handlers take.
@@ -68,13 +68,13 @@ When the panel is collapsed, only a tiny pill shows the current INP and error co
 
 ## Installation
 
-1. Open Forge Neo WebUI
+1. Open your SD WebUI (A1111, Forge, reForge, or Forge Neo)
 2. Go to **Extensions** → **Install from URL**
 3. Paste: `https://github.com/eduardoabreu81/sd-webui-diagnostics`
 4. Click **Install** and reload the WebUI
 5. The diagnostics panel appears automatically in the bottom-right corner
 
-> ⚠️ Requires Forge Neo. It will not work on Automatic1111 or Forge Classic.
+> ⚠️ Best experience on Forge Neo / Gradio 4. Compatible with A1111 and reForge (Gradio 3) with limited Gradio-call detection.
 
 ---
 

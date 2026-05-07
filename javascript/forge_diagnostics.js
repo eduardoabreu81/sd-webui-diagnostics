@@ -1,5 +1,5 @@
 /**
- * Forge Diagnostics — Lightweight frontend profiler for Forge Neo.
+ * SD-WebUI Diagnostics — Lightweight frontend profiler for SD WebUI.
  *
  * Measures startup times, input delay (INP), layout shifts (CLS),
  * memory usage, and console errors without touching the Python backend.
@@ -19,11 +19,20 @@
         memory: [],           // {used, total, timestamp}
         errors: [],           // {type, message, stack, timestamp}
         handlers: [],         // {event, target, duration, fnName}
+        domNodes: [],         // {name, count, timestamp}
+        network: [],          // {url, method, duration, status, timestamp}
+        longTasks: [],        // {duration, timestamp}
+        fps: [],              // {fps, dropped, timestamp}
+        resources: [],        // {name, type, duration, transferSize, timestamp}
+        gradioCalls: [],      // {url, method, duration, status, timestamp}
     };
 
     let panelVisible = false;
     let panelEl = null;
     let memoryInterval = null;
+    let domNodesInterval = null;
+    let inactivityTimeout = null;
+    let fpsRafId = null;
 
     // ------------------------------------------------------------------
     // Utils
@@ -39,11 +48,13 @@
 
     console.error = function (...args) {
         metrics.errors.push({ type: "error", message: args.join(" "), stack: new Error().stack, timestamp: now() });
+        updateErrorBadge();
         origError.apply(console, args);
     };
 
     console.warn = function (...args) {
         metrics.errors.push({ type: "warn", message: args.join(" "), stack: new Error().stack, timestamp: now() });
+        updateErrorBadge();
         origWarn.apply(console, args);
     };
 
@@ -73,6 +84,10 @@
                     metrics.lcp = entry.startTime;
                     updateLcpBadge();
                 }
+                if (entry.entryType === "longtask") {
+                    metrics.longTasks.push({ duration: entry.duration, timestamp: now() });
+                    updateLongTaskBadge();
+                }
             }
         });
 
@@ -88,8 +103,31 @@
         if ("LargestContentfulPaint" in window) {
             obs.observe({ type: "largest-contentful-paint", buffered: true });
         }
+        // Long tasks (main thread blocks)
+        if ("PerformanceLongTaskTiming" in window) {
+            obs.observe({ type: "longtask", buffered: true });
+        }
+        // Resource loading
+        try {
+            const resObs = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    if (entry.duration > 50) {
+                        metrics.resources.push({
+                            name: entry.name.substring(0, 200),
+                            type: entry.initiatorType,
+                            duration: entry.duration,
+                            transferSize: entry.transferSize,
+                            timestamp: now(),
+                        });
+                        if (metrics.resources.length > 200) metrics.resources.shift();
+                        updateResourceBadge();
+                    }
+                }
+            });
+            resObs.observe({ type: "resource", buffered: true });
+        } catch (e) { /* ignore */ }
     } catch (e) {
-        console.error("[Forge Diagnostics] PerformanceObserver init failed:", e);
+        console.error("[SD-WebUI Diagnostics] PerformanceObserver init failed:", e);
     }
 
     // ------------------------------------------------------------------
@@ -109,6 +147,139 @@
             if (metrics.memory.length > 300) metrics.memory.shift();
             updateMemoryBadge();
         }, 1000);
+    }
+
+    // ------------------------------------------------------------------
+    // DOM nodes by extension
+    // ------------------------------------------------------------------
+    function detectExtensions() {
+        const scripts = Array.from(document.querySelectorAll('script[src*="/extensions/"]'));
+        const exts = new Set();
+        scripts.forEach((s) => {
+            const m = s.src.match(/\/extensions\/([^/]+)/);
+            if (m) exts.add(m[1]);
+        });
+        return Array.from(exts);
+    }
+
+    function countDomNodesByExtension() {
+        const extensions = detectExtensions();
+        if (!extensions.length) return [];
+
+        const extMap = new Map();
+        extensions.forEach((e) => extMap.set(e.toLowerCase(), { name: e, count: 0 }));
+
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+        let node;
+        while ((node = walker.nextNode())) {
+            const id = (node.id || "").toLowerCase();
+            const cls = (node.className || "").toLowerCase();
+            for (const [lowName, data] of extMap) {
+                if (id.includes(lowName) || cls.includes(lowName)) {
+                    data.count++;
+                }
+            }
+        }
+
+        const result = [];
+        for (const data of extMap.values()) {
+            result.push({ name: data.name, count: data.count });
+        }
+        return result.sort((a, b) => b.count - a.count);
+    }
+
+    function updateDomNodes() {
+        const counts = countDomNodesByExtension();
+        metrics.domNodes = counts.map((c) => ({ ...c, timestamp: now() }));
+        if (panelVisible) renderDomNodes();
+        updateDomNodesBadge();
+    }
+
+    function startDomNodesObserver() {
+        const extensions = detectExtensions();
+        const extMap = new Map();
+        extensions.forEach((e) => extMap.set(e.toLowerCase(), { name: e, count: 0 }));
+
+        const initial = countDomNodesByExtension();
+        initial.forEach((item) => {
+            extMap.set(item.name.toLowerCase(), { name: item.name, count: item.count });
+        });
+        metrics.domNodes = initial.map((c) => ({ ...c, timestamp: now() }));
+        updateDomNodesBadge();
+
+        const observer = new MutationObserver((mutations) => {
+            let changed = false;
+            for (const mut of mutations) {
+                for (const node of mut.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        const id = (node.id || "").toLowerCase();
+                        const cls = (node.className || "").toLowerCase();
+                        for (const [lowName, data] of extMap) {
+                            if (id.includes(lowName) || cls.includes(lowName)) {
+                                data.count++;
+                                changed = true;
+                            }
+                        }
+                        const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT);
+                        let child;
+                        while ((child = walker.nextNode())) {
+                            const cid = (child.id || "").toLowerCase();
+                            const ccls = (child.className || "").toLowerCase();
+                            for (const [lowName, data] of extMap) {
+                                if (cid.includes(lowName) || ccls.includes(lowName)) {
+                                    data.count++;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (changed) {
+                metrics.domNodes = Array.from(extMap.values())
+                    .map((d) => ({ name: d.name, count: d.count, timestamp: now() }))
+                    .sort((a, b) => b.count - a.count);
+                if (panelVisible) renderDomNodes();
+                updateDomNodesBadge();
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Full re-scan every 30s to correct drift
+        domNodesInterval = setInterval(() => {
+            const counts = countDomNodesByExtension();
+            counts.forEach((item) => {
+                extMap.set(item.name.toLowerCase(), { name: item.name, count: item.count });
+            });
+            metrics.domNodes = counts.map((c) => ({ ...c, timestamp: now() }));
+            if (panelVisible) renderDomNodes();
+            updateDomNodesBadge();
+        }, 30000);
+    }
+
+    // ------------------------------------------------------------------
+    // FPS meter
+    // ------------------------------------------------------------------
+    function startFpsMeter() {
+        let frames = 0;
+        let lastTime = now();
+        function tick() {
+            frames++;
+            const time = now();
+            if (time >= lastTime + 1000) {
+                const elapsed = (time - lastTime) / 1000;
+                const fps = Math.round(frames / elapsed);
+                const dropped = Math.max(0, Math.round(60 * elapsed) - frames);
+                metrics.fps.push({ fps, dropped, timestamp: time });
+                if (metrics.fps.length > 60) metrics.fps.shift();
+                updateFpsBadge();
+                if (panelVisible) renderFps();
+                frames = 0;
+                lastTime = time;
+            }
+            fpsRafId = requestAnimationFrame(tick);
+        }
+        fpsRafId = requestAnimationFrame(tick);
     }
 
     // ------------------------------------------------------------------
@@ -162,11 +333,67 @@
     };
 
     // ------------------------------------------------------------------
+    // Network interceptor
+    // ------------------------------------------------------------------
+    const origFetch = window.fetch;
+    window.fetch = async function (...args) {
+        const start = now();
+        const req = args[0];
+        const url = typeof req === "string" ? req : req?.url || "";
+        const method = args[1]?.method || "GET";
+        const isGradio = url.includes("/run/") || url.includes("/call") || url.includes("/queue/") || url.includes("/predict") || url.includes("/gradio") || url.includes("/api/predict") || url.includes("/queue/join") || url.includes("/internal/progress") || url.includes("/internal/ping");
+        try {
+            const res = await origFetch.apply(this, args);
+            const duration = now() - start;
+            metrics.network.push({ url: url.substring(0, 200), method, duration, status: res.status, timestamp: now() });
+            if (isGradio) {
+                metrics.gradioCalls.push({ url: url.substring(0, 200), method, duration, status: res.status, timestamp: now() });
+                updateGradioBadge();
+            }
+            updateNetworkBadge();
+            return res;
+        } catch (e) {
+            const duration = now() - start;
+            metrics.network.push({ url: url.substring(0, 200), method, duration, status: 0, timestamp: now() });
+            if (isGradio) {
+                metrics.gradioCalls.push({ url: url.substring(0, 200), method, duration, status: 0, timestamp: now() });
+                updateGradioBadge();
+            }
+            updateNetworkBadge();
+            throw e;
+        }
+    };
+
+    const origXHROpen = XMLHttpRequest.prototype.open;
+    const origXHRSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+        this._fdMethod = method;
+        this._fdUrl = url;
+        return origXHROpen.call(this, method, url, ...rest);
+    };
+    XMLHttpRequest.prototype.send = function (...args) {
+        const start = now();
+        const url = (this._fdUrl || "");
+        const isGradio = url.includes("/run/") || url.includes("/call") || url.includes("/queue/") || url.includes("/predict") || url.includes("/gradio") || url.includes("/api/predict") || url.includes("/queue/join") || url.includes("/internal/progress") || url.includes("/internal/ping");
+        const onLoadEnd = () => {
+            const duration = now() - start;
+            metrics.network.push({ url: url.substring(0, 200), method: this._fdMethod || "GET", duration, status: this.status, timestamp: now() });
+            if (isGradio) {
+                metrics.gradioCalls.push({ url: url.substring(0, 200), method: this._fdMethod || "GET", duration, status: this.status, timestamp: now() });
+                updateGradioBadge();
+            }
+            updateNetworkBadge();
+        };
+        this.addEventListener("loadend", onLoadEnd, { once: true });
+        return origXHRSend.apply(this, args);
+    };
+
+    // ------------------------------------------------------------------
     // UI Panel
     // ------------------------------------------------------------------
     function createPanel() {
         const css = `
-            .forge-diagnostics-panel {
+            .sd-webui-diagnostics-panel {
                 position: fixed;
                 bottom: 16px;
                 right: 16px;
@@ -184,7 +411,7 @@
                 flex-direction: column;
                 box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             }
-            .forge-diagnostics-header {
+            .sd-webui-diagnostics-header {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
@@ -194,74 +421,74 @@
                 cursor: pointer;
                 user-select: none;
             }
-            .forge-diagnostics-header h3 {
+            .sd-webui-diagnostics-header h3 {
                 margin: 0;
                 font-size: 13px;
                 font-weight: 600;
             }
-            .forge-diagnostics-badges {
+            .sd-webui-diagnostics-badges {
                 display: flex;
                 gap: 6px;
             }
-            .forge-diagnostics-badge {
+            .sd-webui-diagnostics-badge {
                 padding: 2px 6px;
                 border-radius: 4px;
                 font-size: 10px;
                 font-weight: 700;
                 background: #374151;
             }
-            .forge-diagnostics-badge.ok { background: #166534; color: #dcfce7; }
-            .forge-diagnostics-badge.warn { background: #854d0e; color: #fef9c3; }
-            .forge-diagnostics-badge.bad { background: #991b1b; color: #fee2e2; }
-            .forge-diagnostics-body {
+            .sd-webui-diagnostics-badge.ok { background: #166534; color: #dcfce7; }
+            .sd-webui-diagnostics-badge.warn { background: #854d0e; color: #fef9c3; }
+            .sd-webui-diagnostics-badge.bad { background: #991b1b; color: #fee2e2; }
+            .sd-webui-diagnostics-body {
                 padding: 12px 14px;
                 overflow-y: auto;
                 flex: 1;
                 display: none;
             }
-            .forge-diagnostics-panel.open .forge-diagnostics-body { display: block; }
-            .forge-diagnostics-section {
+            .sd-webui-diagnostics-panel.open .sd-webui-diagnostics-body { display: block; }
+            .sd-webui-diagnostics-section {
                 margin-bottom: 14px;
             }
-            .forge-diagnostics-section h4 {
+            .sd-webui-diagnostics-section h4 {
                 margin: 0 0 6px;
                 font-size: 11px;
                 text-transform: uppercase;
                 color: #9ca3af;
                 letter-spacing: 0.05em;
             }
-            .forge-diagnostics-bar {
+            .sd-webui-diagnostics-bar {
                 display: flex;
                 align-items: center;
                 gap: 8px;
                 margin-bottom: 4px;
             }
-            .forge-diagnostics-bar-label {
+            .sd-webui-diagnostics-bar-label {
                 width: 120px;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
             }
-            .forge-diagnostics-bar-track {
+            .sd-webui-diagnostics-bar-track {
                 flex: 1;
                 height: 8px;
                 background: #374151;
                 border-radius: 4px;
                 overflow: hidden;
             }
-            .forge-diagnostics-bar-fill {
+            .sd-webui-diagnostics-bar-fill {
                 height: 100%;
                 border-radius: 4px;
                 background: #3b82f6;
             }
-            .forge-diagnostics-bar-fill.slow { background: #ef4444; }
-            .forge-diagnostics-bar-fill.medium { background: #f59e0b; }
-            .forge-diagnostics-bar-value {
+            .sd-webui-diagnostics-bar-fill.slow { background: #ef4444; }
+            .sd-webui-diagnostics-bar-fill.medium { background: #f59e0b; }
+            .sd-webui-diagnostics-bar-value {
                 width: 50px;
                 text-align: right;
                 font-variant-numeric: tabular-nums;
             }
-            .forge-diagnostics-error {
+            .sd-webui-diagnostics-error {
                 padding: 6px 8px;
                 background: #1f2937;
                 border-left: 3px solid #ef4444;
@@ -270,7 +497,7 @@
                 font-size: 11px;
                 word-break: break-word;
             }
-            .forge-diagnostics-btn {
+            .sd-webui-diagnostics-btn {
                 display: block;
                 width: 100%;
                 padding: 8px;
@@ -283,8 +510,8 @@
                 font-size: 12px;
                 margin-top: 8px;
             }
-            .forge-diagnostics-btn:hover { background: #1d4ed8; }
-            .forge-diagnostics-empty {
+            .sd-webui-diagnostics-btn:hover { background: #1d4ed8; }
+            .sd-webui-diagnostics-empty {
                 color: #6b7280;
                 font-style: italic;
                 text-align: center;
@@ -297,34 +524,65 @@
         document.head.appendChild(style);
 
         panelEl = document.createElement("div");
-        panelEl.className = "forge-diagnostics-panel";
+        panelEl.className = "sd-webui-diagnostics-panel";
         panelEl.innerHTML = `
-            <div class="forge-diagnostics-header" id="fd-toggle">
-                <h3>🔍 Forge Diagnostics</h3>
-                <div class="forge-diagnostics-badges">
-                    <span class="forge-diagnostics-badge" id="fd-badge-inp">INP —</span>
-                    <span class="forge-diagnostics-badge" id="fd-badge-cls">CLS —</span>
-                    <span class="forge-diagnostics-badge" id="fd-badge-err">0 err</span>
+            <div class="sd-webui-diagnostics-header" id="fd-toggle">
+                <h3>🔍 SD-WebUI Diagnostics</h3>
+                <div class="sd-webui-diagnostics-badges">
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-inp">INP —</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-cls">CLS —</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-dom">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-net">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-lt">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-fps">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-res">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-gradio">—</span>
+                    <span class="sd-webui-diagnostics-badge" id="fd-badge-err">0 err</span>
                 </div>
             </div>
-            <div class="forge-diagnostics-body">
-                <div class="forge-diagnostics-section">
+            <div class="sd-webui-diagnostics-body">
+                <div class="sd-webui-diagnostics-section">
                     <h4>Startup Time</h4>
                     <div id="fd-startup">No data yet</div>
                 </div>
-                <div class="forge-diagnostics-section">
+                <div class="sd-webui-diagnostics-section">
                     <h4>Slow Event Handlers</h4>
                     <div id="fd-handlers">No data yet</div>
                 </div>
-                <div class="forge-diagnostics-section">
+                <div class="sd-webui-diagnostics-section">
                     <h4>Recent Errors</h4>
                     <div id="fd-errors">No data yet</div>
                 </div>
-                <div class="forge-diagnostics-section">
+                <div class="sd-webui-diagnostics-section">
                     <h4>Memory (Chrome)</h4>
                     <div id="fd-memory">No data yet</div>
                 </div>
-                <button class="forge-diagnostics-btn" id="fd-export">📥 Export JSON Report</button>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>DOM Nodes by Extension</h4>
+                    <div id="fd-domnodes">No data yet</div>
+                </div>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>Network Calls</h4>
+                    <div id="fd-network">No data yet</div>
+                </div>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>Long Tasks</h4>
+                    <div id="fd-longtasks">No data yet</div>
+                </div>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>FPS</h4>
+                    <div id="fd-fps">No data yet</div>
+                </div>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>Resource Loading</h4>
+                    <div id="fd-resources">No data yet</div>
+                </div>
+                <div class="sd-webui-diagnostics-section">
+                    <h4>Gradio Calls</h4>
+                    <div id="fd-gradio">No data yet</div>
+                </div>
+                <button class="sd-webui-diagnostics-btn" id="fd-export">📥 Export JSON Report</button>
+                <button class="sd-webui-diagnostics-btn" id="fd-clear" style="background:#374151;margin-top:6px;">🔄 Clear Metrics</button>
             </div>
         `;
         document.body.appendChild(panelEl);
@@ -336,6 +594,12 @@
         });
 
         document.getElementById("fd-export").addEventListener("click", exportReport);
+        document.getElementById("fd-clear").addEventListener("click", clearMetrics);
+
+        // Auto-collapse after 30s of inactivity
+        panelEl.addEventListener("mousemove", resetInactivityTimer);
+        panelEl.addEventListener("click", resetInactivityTimer);
+        resetInactivityTimer();
     }
 
     // ------------------------------------------------------------------
@@ -347,12 +611,18 @@
         renderHandlers();
         renderErrors();
         renderMemory();
+        renderDomNodes();
+        renderNetwork();
+        renderLongTasks();
+        renderFps();
+        renderResources();
+        renderGradioCalls();
     }
 
     function renderStartup() {
         const el = document.getElementById("fd-startup");
         if (!metrics.startup.length) {
-            el.innerHTML = '<div class="forge-diagnostics-empty">Waiting for extensions to finish loading...</div>';
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">Waiting for extensions to finish loading...</div>';
             return;
         }
         const max = Math.max(...metrics.startup.map((m) => m.duration), 1);
@@ -360,10 +630,10 @@
             .map((m) => {
                 const pct = (m.duration / max) * 100;
                 const cls = m.duration > 1000 ? "slow" : m.duration > 200 ? "medium" : "";
-                return `<div class="forge-diagnostics-bar">
-                    <div class="forge-diagnostics-bar-label" title="${m.name}">${m.name}</div>
-                    <div class="forge-diagnostics-bar-track"><div class="forge-diagnostics-bar-fill ${cls}" style="width:${pct}%"></div></div>
-                    <div class="forge-diagnostics-bar-value">${fmtMs(m.duration)}</div>
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label" title="${m.name}">${m.name}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill ${cls}" style="width:${pct}%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${fmtMs(m.duration)}</div>
                 </div>`;
             })
             .join("");
@@ -373,15 +643,15 @@
         const el = document.getElementById("fd-handlers");
         const list = metrics.handlers.slice(-10).reverse();
         if (!list.length) {
-            el.innerHTML = '<div class="forge-diagnostics-empty">No slow handlers detected</div>';
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No slow handlers detected</div>';
             return;
         }
         el.innerHTML = list
             .map((h) => {
-                return `<div class="forge-diagnostics-bar">
-                    <div class="forge-diagnostics-bar-label" title="${h.fnName}">${h.event} › ${h.target}</div>
-                    <div class="forge-diagnostics-bar-track"><div class="forge-diagnostics-bar-fill slow" style="width:100%"></div></div>
-                    <div class="forge-diagnostics-bar-value">${fmtMs(h.duration)}</div>
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label" title="${h.fnName}">${h.event} › ${h.target}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill slow" style="width:100%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${fmtMs(h.duration)}</div>
                 </div>`;
             })
             .join("");
@@ -391,24 +661,139 @@
         const el = document.getElementById("fd-errors");
         const list = metrics.errors.slice(-5).reverse();
         if (!list.length) {
-            el.innerHTML = '<div class="forge-diagnostics-empty">No errors yet</div>';
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No errors yet</div>';
             return;
         }
         el.innerHTML = list
-            .map((e) => `<div class="forge-diagnostics-error"><strong>${e.type}:</strong> ${e.message.substring(0, 200)}</div>`)
+            .map((e) => `<div class="sd-webui-diagnostics-error"><strong>${e.type}:</strong> ${e.message.substring(0, 200)}</div>`)
             .join("");
     }
 
     function renderMemory() {
         const el = document.getElementById("fd-memory");
         if (!metrics.memory.length) {
-            el.innerHTML = '<div class="forge-diagnostics-empty">Memory API not available</div>';
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">Memory API not available</div>';
             return;
         }
         const last = metrics.memory[metrics.memory.length - 1];
         const usedMB = (last.used / 1048576).toFixed(1);
         const totalMB = (last.total / 1048576).toFixed(1);
         el.innerHTML = `<div>Used: <strong>${usedMB} MB</strong> / Total: ${totalMB} MB</div>`;
+    }
+
+    function renderDomNodes() {
+        const el = document.getElementById("fd-domnodes");
+        if (!metrics.domNodes.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extension nodes detected</div>';
+            return;
+        }
+        const max = Math.max(...metrics.domNodes.map((m) => m.count), 1);
+        el.innerHTML = metrics.domNodes
+            .map((m) => {
+                const pct = (m.count / max) * 100;
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label" title="${m.name}">${m.name}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill" style="width:${pct}%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${m.count}</div>
+                </div>`;
+            })
+            .join("");
+    }
+
+    function renderNetwork() {
+        const el = document.getElementById("fd-network");
+        const list = metrics.network.slice(-10).reverse();
+        if (!list.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No network calls captured</div>';
+            return;
+        }
+        const max = Math.max(...list.map((m) => m.duration), 1);
+        el.innerHTML = list
+            .map((m) => {
+                const pct = (m.duration / max) * 100;
+                const cls = m.duration > 3000 ? "slow" : m.duration > 1000 ? "medium" : "";
+                const label = (m.url || "").replace(location.origin, "");
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label" title="${label}">${m.method} ${label.substring(0, 30)}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill ${cls}" style="width:${pct}%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${fmtMs(m.duration)}</div>
+                </div>`;
+            })
+            .join("");
+    }
+
+    function renderLongTasks() {
+        const el = document.getElementById("fd-longtasks");
+        const list = metrics.longTasks.slice(-10).reverse();
+        if (!list.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No long tasks detected</div>';
+            return;
+        }
+        el.innerHTML = list
+            .map((t, i) => {
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label">Task #${metrics.longTasks.length - i}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill slow" style="width:100%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${fmtMs(t.duration)}</div>
+                </div>`;
+            })
+            .join("");
+    }
+
+    function renderFps() {
+        const el = document.getElementById("fd-fps");
+        if (!metrics.fps.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">Collecting FPS data...</div>';
+            return;
+        }
+        const last = metrics.fps[metrics.fps.length - 1];
+        const avg = metrics.fps.reduce((s, m) => s + m.fps, 0) / metrics.fps.length;
+        const totalDropped = metrics.fps.reduce((s, m) => s + m.dropped, 0);
+        el.innerHTML = `<div>Current: <strong>${last.fps} FPS</strong> &nbsp;|&nbsp; Avg: ${avg.toFixed(0)} &nbsp;|&nbsp; Drops: ${totalDropped}</div>`;
+    }
+
+    function renderResources() {
+        const el = document.getElementById("fd-resources");
+        const list = metrics.resources.slice(-10).reverse();
+        if (!list.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No slow resources detected</div>';
+            return;
+        }
+        const max = Math.max(...list.map((m) => m.duration), 1);
+        el.innerHTML = list
+            .map((m) => {
+                const pct = (m.duration / max) * 100;
+                const cls = m.duration > 3000 ? "slow" : m.duration > 1000 ? "medium" : "";
+                const name = (m.name || "").replace(location.origin, "").substring(0, 35);
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label" title="${m.name}">${m.type} ${name}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill ${cls}" style="width:${pct}%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${fmtMs(m.duration)}</div>
+                </div>`;
+            })
+            .join("");
+    }
+
+    function renderGradioCalls() {
+        const el = document.getElementById("fd-gradio");
+        const list = metrics.gradioCalls.slice(-10).reverse();
+        if (!list.length) {
+            el.innerHTML = '<div class="sd-webui-diagnostics-empty">No Gradio calls captured</div>';
+            return;
+        }
+        const max = Math.max(...list.map((m) => m.duration), 1);
+        el.innerHTML = list
+            .map((m) => {
+                const pct = (m.duration / max) * 100;
+                const cls = m.duration > 5000 ? "slow" : m.duration > 2000 ? "medium" : "";
+                const label = (m.url || "").replace(location.origin, "").substring(0, 30);
+                return `<div class="sd-webui-diagnostics-bar">
+                    <div class="sd-webui-diagnostics-bar-label" title="${m.url}">${m.method} ${label}</div>
+                    <div class="sd-webui-diagnostics-bar-track"><div class="sd-webui-diagnostics-bar-fill ${cls}" style="width:${pct}%"></div></div>
+                    <div class="sd-webui-diagnostics-bar-value">${fmtMs(m.duration)}</div>
+                </div>`;
+            })
+            .join("");
     }
 
     // ------------------------------------------------------------------
@@ -418,17 +803,17 @@
         const badge = document.getElementById("fd-badge-inp");
         if (!badge) return;
         const last = metrics.inp[metrics.inp.length - 1];
-        if (!last) { badge.textContent = "INP —"; badge.className = "forge-diagnostics-badge"; return; }
+        if (!last) { badge.textContent = "INP —"; badge.className = "sd-webui-diagnostics-badge"; return; }
         const v = last.value;
         badge.textContent = `INP ${fmtMs(v)}`;
-        badge.className = "forge-diagnostics-badge " + (v < 200 ? "ok" : v < 500 ? "warn" : "bad");
+        badge.className = "sd-webui-diagnostics-badge " + (v < 200 ? "ok" : v < 500 ? "warn" : "bad");
     }
 
     function updateClsBadge() {
         const badge = document.getElementById("fd-badge-cls");
         if (!badge) return;
         badge.textContent = `CLS ${metrics.cls.toFixed(3)}`;
-        badge.className = "forge-diagnostics-badge " + (metrics.cls < 0.1 ? "ok" : metrics.cls < 0.25 ? "warn" : "bad");
+        badge.className = "sd-webui-diagnostics-badge " + (metrics.cls < 0.1 ? "ok" : metrics.cls < 0.25 ? "warn" : "bad");
     }
 
     function updateLcpBadge() {
@@ -448,21 +833,105 @@
         if (panelVisible) renderMemory();
     }
 
+    function updateDomNodesBadge() {
+        const badge = document.getElementById("fd-badge-dom");
+        if (!badge) return;
+        const total = metrics.domNodes.reduce((sum, m) => sum + m.count, 0);
+        badge.textContent = `${total} nodes`;
+        badge.className = "sd-webui-diagnostics-badge" + (total > 5000 ? " warn" : "");
+    }
+
+    function updateNetworkBadge() {
+        const badge = document.getElementById("fd-badge-net");
+        if (!badge) return;
+        const last = metrics.network[metrics.network.length - 1];
+        badge.textContent = last ? `NET ${fmtMs(last.duration)}` : "NET —";
+        badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.duration < 1000 ? "ok" : last.duration < 3000 ? "warn" : "bad");
+    }
+
+    function updateLongTaskBadge() {
+        const badge = document.getElementById("fd-badge-lt");
+        if (!badge) return;
+        const count = metrics.longTasks.length;
+        badge.textContent = `${count} LT`;
+        badge.className = "sd-webui-diagnostics-badge " + (count === 0 ? "ok" : "warn");
+    }
+
+    function updateFpsBadge() {
+        const badge = document.getElementById("fd-badge-fps");
+        if (!badge) return;
+        const last = metrics.fps[metrics.fps.length - 1];
+        badge.textContent = last ? `${last.fps} FPS` : "FPS —";
+        badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.fps >= 50 ? "ok" : last.fps >= 30 ? "warn" : "bad");
+    }
+
+    function updateResourceBadge() {
+        const badge = document.getElementById("fd-badge-res");
+        if (!badge) return;
+        const count = metrics.resources.length;
+        badge.textContent = `${count} res`;
+        badge.className = "sd-webui-diagnostics-badge";
+    }
+
+    function updateGradioBadge() {
+        const badge = document.getElementById("fd-badge-gradio");
+        if (!badge) return;
+        const last = metrics.gradioCalls[metrics.gradioCalls.length - 1];
+        badge.textContent = last ? `GRD ${fmtMs(last.duration)}` : "GRD —";
+        badge.className = "sd-webui-diagnostics-badge " + (!last ? "" : last.duration < 2000 ? "ok" : last.duration < 5000 ? "warn" : "bad");
+    }
+
     function updateErrorBadge() {
         const badge = document.getElementById("fd-badge-err");
         if (!badge) return;
         const count = metrics.errors.length;
         badge.textContent = `${count} err`;
-        badge.className = "forge-diagnostics-badge " + (count === 0 ? "ok" : "bad");
+        badge.className = "sd-webui-diagnostics-badge " + (count === 0 ? "ok" : "bad");
         if (panelVisible) renderErrors();
     }
 
-    // Wire error badge updates
-    const origConsoleError = console.error;
-    console.error = function (...args) {
+    // ------------------------------------------------------------------
+    // Auto-collapse after inactivity
+    // ------------------------------------------------------------------
+    function resetInactivityTimer() {
+        if (inactivityTimeout) clearTimeout(inactivityTimeout);
+        if (panelVisible) {
+            inactivityTimeout = setTimeout(() => {
+                panelVisible = false;
+                if (panelEl) panelEl.classList.remove("open");
+            }, 30000);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Clear / Refresh
+    // ------------------------------------------------------------------
+    function clearMetrics() {
+        metrics.startup.length = 0;
+        metrics.inp.length = 0;
+        metrics.cls = 0;
+        metrics.lcp = 0;
+        metrics.memory.length = 0;
+        metrics.errors.length = 0;
+        metrics.handlers.length = 0;
+        metrics.domNodes.length = 0;
+        metrics.network.length = 0;
+        metrics.longTasks.length = 0;
+        metrics.fps.length = 0;
+        metrics.resources.length = 0;
+        metrics.gradioCalls.length = 0;
+        updateInpBadge();
+        updateClsBadge();
         updateErrorBadge();
-        origConsoleError.apply(console, args);
-    };
+        updateDomNodesBadge();
+        updateNetworkBadge();
+        updateLongTaskBadge();
+        updateFpsBadge();
+        updateResourceBadge();
+        updateGradioBadge();
+        if (panelVisible) render();
+        console.log("[SD-WebUI Diagnostics] Metrics cleared.");
+    }
 
     // ------------------------------------------------------------------
     // Export
@@ -480,12 +949,18 @@
                 memory: metrics.memory,
                 errors: metrics.errors,
                 handlers: metrics.handlers,
+                domNodes: metrics.domNodes,
+                network: metrics.network,
+                longTasks: metrics.longTasks,
+                fps: metrics.fps,
+                resources: metrics.resources,
+                gradioCalls: metrics.gradioCalls,
             },
         };
         const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `forge-diagnostics-${Date.now()}.json`;
+        a.download = `sd-webui-diagnostics-${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
     }
@@ -496,7 +971,9 @@
     function init() {
         createPanel();
         startMemoryPolling();
-        console.log("[Forge Diagnostics] Profiler active. Click the 🔍 pill to open the panel.");
+        startDomNodesObserver();
+        startFpsMeter();
+        console.log("[SD-WebUI Diagnostics] Profiler active. Click the 🔍 pill to open the panel.");
     }
 
     // Wait for Gradio root to be ready
