@@ -594,36 +594,29 @@
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-body { display: none; }
             /* State: bar */
             .sd-webui-diagnostics-panel.state-bar {
-                width: auto;
-                min-width: 280px;
-                max-width: 420px;
-                height: auto;
-                border-radius: 8px;
+                width: 460px;
+                min-width: 320px;
+                max-width: 90vw;
+                border-radius: 12px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header {
-                padding: 8px 10px;
-                border-bottom: none;
-                gap: 8px;
-                align-items: flex-start;
+                padding: 10px 14px;
+                border-bottom: 1px solid #374151;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 {
-                font-size: 10px;
-                line-height: 1.25;
-                text-align: left;
-                white-space: nowrap;
-                flex-shrink: 0;
-                margin-top: 2px;
+                font-size: 11px;
+                line-height: 1.3;
+                text-align: center;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
-                gap: 3px;
-                width: 100%;
-                max-width: 280px;
+                gap: 4px;
+                max-width: 360px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badge {
-                font-size: 9px;
-                padding: 1px 3px;
+                font-size: 10px;
+                padding: 2px 4px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-icon-view { display: none; }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-body { display: none; }
