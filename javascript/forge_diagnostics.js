@@ -634,7 +634,11 @@
                 text-align: center;
                 margin: 0 6px 0 0;
                 flex-shrink: 0;
-                width: min-content;
+                width: max-content;
+            }
+            .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
+                flex: 1;
+                min-width: 0;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
                 display: grid;
