@@ -28,6 +28,13 @@ A lightweight frontend profiler that runs directly inside your Stable Diffusion 
 
 ## 🆕 What's New
 
+### v0.2.0 — 3-State Floating Widget + Magnetic Docking
+- **Three UI States** — Icon (minimal badge), Bar (compact header with badges), and Expanded (full panel with tabs). ⭐
+- **Magnetic Corner Docking** — Drag the handle (⋮⋮⋮) to any screen edge; widget snaps to the nearest corner and remembers its position. ⭐
+- **Smart Auto-Collapse** — Expanded panel automatically collapses back to your last minimized state (icon or bar) after 30s of inactivity.
+- **Icon Metric Selector** — Choose which metric appears on the icon badge: errors, INP, memory, FPS, or 🔍 lupa (via Settings).
+- **Gradio 4 / Svelte Compatibility** — Eliminated global event-listener patches that were breaking Forge Neo's tab system.
+
 ### v0.1.0 — Cross-Platform Frontend Profiler
 - **Universal Compatibility** — Works on AUTOMATIC1111, Forge, reForge, and Forge Neo (Gradio 3 & 4). ⭐
 - **FPS Meter + Real Frame Drops** — Detects actual skipped frames by measuring frame delta timing, not just FPS averages. ⭐
@@ -98,6 +105,13 @@ A lightweight frontend profiler that runs directly inside your Stable Diffusion 
 ---
 
 ## 📖 Changelog
+
+### v0.2.0 — 3-State Floating Widget + Magnetic Docking (2026-05-07)
+- **Three UI States** — Icon (minimal badge), Bar (compact header), Expanded (full panel).
+- **Magnetic Corner Docking** — Drag handle (⋮⋮⋮) to any edge; snaps to nearest corner.
+- **Smart Auto-Collapse** — Returns to last minimized state (icon/bar) after 30s inactivity.
+- **Settings:** `icon_metric`, `default_state`, `position_anchor`.
+- **Gradio 4 / Svelte fixes** — Safe `addEventListener` wrapper (no `JSON.stringify`), event delegation instead of inline handlers, retry-based `init()` for async DOM.
 
 ### v0.1.0 — Cross-Platform Frontend Profiler
 - Universal compatibility with A1111, Forge, reForge, and Forge Neo.
