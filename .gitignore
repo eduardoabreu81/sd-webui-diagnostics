@@ -1,5 +1,8 @@
 # Development / agent files
 AGENTS.md
+AGENTS.local.md
+docs/
+.github/copilot-instructions.md
 .specstory/
 
 # Python
