@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src=".github/sd-webui-diagnostics-banner.png" alt="SD-WebUI Diagnostics" width="100%"/>
-
-# 🔍 SD-WebUI Diagnostics
+<img src=".github/sd-webui-diagnostics-banner.png" alt="SD-WebUI Diagnostics"/>
 
 [![SD WebUI](https://img.shields.io/badge/SD_WebUI-A1111%20%7C%20Forge%20%7C%20reForge%20%7C%20Neo-blue)](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -10,6 +8,8 @@
 > **Lightweight performance profiler for Stable Diffusion WebUI**
 
 </div>
+
+# 🔍 SD-WebUI Diagnostics
 
 A lightweight frontend profiler that runs directly inside your Stable Diffusion WebUI tab. Track extension startup times, JavaScript memory leaks, slow event handlers, network latency, frame drops, and UI blocking events — all in real time, without external tools or Python overhead.
 
