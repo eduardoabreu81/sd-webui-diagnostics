@@ -37,6 +37,7 @@
     let lastDomScan = 0;
     let inactivityTimeout = null;
     let fpsRafId = null;
+    let widgetDestroyed = false;
 
     // ------------------------------------------------------------------
     // Utils
@@ -264,11 +265,37 @@
     let backendStateLoaded = false;
     let modelCounts = { checkpoints: 0, loras: 0 };
 
+    function destroyWidget() {
+        if (widgetDestroyed) return;
+        widgetDestroyed = true;
+        if (panelEl && panelEl.parentNode) {
+            panelEl.parentNode.removeChild(panelEl);
+        }
+        panelEl = null;
+        if (memoryInterval) {
+            clearInterval(memoryInterval);
+            memoryInterval = null;
+        }
+        if (fpsRafId) {
+            cancelAnimationFrame(fpsRafId);
+            fpsRafId = null;
+        }
+        if (inactivityTimeout) {
+            clearTimeout(inactivityTimeout);
+            inactivityTimeout = null;
+        }
+        console.log("[SD-WebUI Diagnostics] Widget disabled via Settings — removed from page.");
+    }
+
     async function loadBackendState() {
         try {
             const res = await fetch("/sd-webui-diagnostics/api/state");
             if (res.ok) {
                 const data = await res.json();
+                if (data.config && data.config.enabled === false) {
+                    destroyWidget();
+                    return;
+                }
                 backendExtensions = data.extensions || [];
                 modelCounts = data.models || { checkpoints: 0, loras: 0 };
                 backendStateLoaded = true;
@@ -1008,7 +1035,7 @@
             dragHandle.style.cursor = 'grabbing';
         });
         document.addEventListener("mousemove", (e) => {
-            if (!dragState.active) return;
+            if (!dragState.active || !panelEl) return;
             e.preventDefault();
             let dx = e.clientX - dragState.startX;
             let dy = e.clientY - dragState.startY;
@@ -1025,7 +1052,7 @@
             panelEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)';
         });
         document.addEventListener("mouseup", () => {
-            if (!dragState.active) return;
+            if (!dragState.active || !panelEl) return;
             dragState.active = false;
             dragHandle.style.cursor = '';
             // Read final visual position
@@ -1080,6 +1107,7 @@
 
     function renderOverview() {
         const el = document.getElementById("fd-overview");
+        if (!el) return;
         const lastFps = metrics.fps[metrics.fps.length - 1];
         const lastMem = metrics.memory[metrics.memory.length - 1];
         const lastNet = metrics.network[metrics.network.length - 1];
@@ -1113,6 +1141,7 @@
 
     function renderStartup() {
         const el = document.getElementById("fd-startup");
+        if (!el) return;
         if (!metrics.startup.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">Waiting for extensions to finish loading...</div>';
             return;
@@ -1133,6 +1162,7 @@
 
     function renderHandlers() {
         const el = document.getElementById("fd-handlers");
+        if (!el) return;
         const list = metrics.handlers.slice(-10).reverse();
         if (!list.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No slow handlers detected</div>';
@@ -1151,6 +1181,7 @@
 
     function renderErrors() {
         const el = document.getElementById("fd-errors");
+        if (!el) return;
         const list = metrics.errors.slice(-5).reverse();
         if (!list.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No errors yet</div>';
@@ -1163,6 +1194,7 @@
 
     function renderMemory() {
         const el = document.getElementById("fd-memory");
+        if (!el) return;
         if (!metrics.memory.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">Memory API not available</div>';
             return;
@@ -1175,6 +1207,7 @@
 
     function renderDomNodes() {
         const el = document.getElementById("fd-domnodes");
+        if (!el) return;
         // Scan on-demand only; throttle to once per 5s
         const t = now();
         if (t - lastDomScan > 5000) {
@@ -1204,6 +1237,7 @@
 
     function renderNetwork() {
         const el = document.getElementById("fd-network");
+        if (!el) return;
         const list = metrics.network.slice(-10).reverse();
         if (!list.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No network calls captured</div>';
@@ -1226,6 +1260,7 @@
 
     function renderLongTasks() {
         const el = document.getElementById("fd-longtasks");
+        if (!el) return;
         const list = metrics.longTasks.slice(-10).reverse();
         if (!list.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No long tasks detected</div>';
@@ -1244,6 +1279,7 @@
 
     function renderFps() {
         const el = document.getElementById("fd-fps");
+        if (!el) return;
         if (!metrics.fps.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">Collecting FPS data...</div>';
             return;
@@ -1256,6 +1292,7 @@
 
     function renderResources() {
         const el = document.getElementById("fd-resources");
+        if (!el) return;
         const list = metrics.resources.slice(-10).reverse();
         if (!list.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No slow resources detected</div>';
@@ -1278,6 +1315,7 @@
 
     function renderGradioCalls() {
         const el = document.getElementById("fd-gradio");
+        if (!el) return;
         const list = metrics.gradioCalls.slice(-10).reverse();
         if (!list.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No Gradio calls captured</div>';
@@ -1407,6 +1445,7 @@
 
     function renderExtensionHealth() {
         const el = document.getElementById("fd-extension-health");
+        if (!el) return;
         if (!metrics.extensionStatus.length) {
             el.innerHTML = '<div class="sd-webui-diagnostics-empty">No extensions detected. <button class="sd-webui-diagnostics-btn" style="margin-top:6px;" data-action="reload-backend">🔄 Retry</button></div>';
             return;

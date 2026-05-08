@@ -232,15 +232,22 @@ def _get_model_counts():
 # ------------------------------------------------------------------------------
 # JS file writers (fallback when endpoint is unavailable)
 # ------------------------------------------------------------------------------
-def _write_config_js():
+def _get_config():
+    """Return current settings as a plain dict."""
     try:
         from modules import shared
+    except Exception:
+        return {}
+    cfg = {}
+    for key, default, _label in _SETTINGS:
+        opt_key = f"sdwebui_diagnostics_{key}"
+        cfg[key] = getattr(shared.opts, opt_key, default)
+    return cfg
 
-        cfg = {}
-        for key, default, _label in _SETTINGS:
-            opt_key = f"sdwebui_diagnostics_{key}"
-            cfg[key] = getattr(shared.opts, opt_key, default)
 
+def _write_config_js():
+    try:
+        cfg = _get_config()
         js = f"window.SD_WEBUI_DIAGNOSTICS_CONFIG = {json.dumps(cfg, indent=2)};\n"
         with open(_CONFIG_JS_PATH, "w", encoding="utf-8") as f:
             f.write(js)
@@ -272,6 +279,9 @@ try:
                 f"sdwebui_diagnostics_{key}",
                 shared.OptionInfo(default, label, section=section),
             )
+        # Write config AFTER options are registered so saved values from
+        # config.json are picked up instead of hardcoded defaults.
+        _write_config_js()
 
     def on_app_started(_demo, app):
         """Register FastAPI endpoint for live state queries."""
@@ -282,6 +292,7 @@ try:
             def api_state():
                 return JSONResponse(
                     {
+                        "config": _get_config(),
                         "extensions": _get_extensions(),
                         "models": _get_model_counts(),
                         "traced": len(_extension_timings) > 0,
@@ -300,9 +311,29 @@ try:
     # Install tracer immediately so it catches early callbacks
     _install_callback_tracer()
 
-    # Write fallback files so they exist before first page load
-    _write_config_js()
+    # Write state fallback immediately; config is written in on_ui_settings
+    # so that saved settings (e.g. enabled=false) are used instead of defaults.
     _write_state_js()
+
+    # Patch shared.opts.save so config/state files are rewritten
+    # immediately when the user clicks "Apply settings".
+    def _patch_opts_save():
+        try:
+            from modules import shared
+
+            _orig_save = shared.opts.save
+
+            def _new_save(*args, **kwargs):
+                result = _orig_save(*args, **kwargs)
+                _write_config_js()
+                _write_state_js()
+                return result
+
+            shared.opts.save = _new_save
+        except Exception:
+            pass
+
+    _patch_opts_save()
 
 except Exception:
     traceback.print_exc()
