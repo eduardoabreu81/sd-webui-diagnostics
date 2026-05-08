@@ -595,28 +595,31 @@
             /* State: bar */
             .sd-webui-diagnostics-panel.state-bar {
                 width: auto;
-                min-width: 220px;
+                min-width: 280px;
                 max-width: 420px;
-                height: 44px;
+                height: auto;
                 border-radius: 8px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header {
-                padding: 6px 8px;
+                padding: 8px 10px;
                 border-bottom: none;
-                gap: 6px;
+                gap: 8px;
+                align-items: flex-start;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 {
                 font-size: 10px;
-                line-height: 1.2;
+                line-height: 1.25;
                 text-align: left;
                 white-space: nowrap;
+                flex-shrink: 0;
+                margin-top: 2px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
-                display: flex;
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
                 gap: 3px;
-                grid-template-columns: none;
-                flex: 1;
-                min-width: 0;
+                width: 100%;
+                max-width: 280px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badge {
                 font-size: 9px;
