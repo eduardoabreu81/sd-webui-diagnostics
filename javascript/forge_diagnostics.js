@@ -1644,27 +1644,11 @@
             window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true; // Mark as done so we don't retry
             return;
         }
-        // Only run on the main generation tab (txt2img/img2img), not Settings/Extensions/etc.
-        // Forge Neo / Gradio 4 renders DOM asynchronously, so we retry until elements appear.
-        // NOTE: .gradio-container is intentionally excluded — it exists on every Gradio page.
-        const isMainTab = !!(
-            document.querySelector("#tabs, [id*='txt2img'], [id*='img2img'], .svelte-tabs")
-            || document.getElementById("txt2img_prompt")
-            || document.querySelector("[id='txt2img_prompt']")
-            || document.querySelector("[name='txt2img_prompt']")
-        );
-        console.log("[SD-WebUI Diagnostics] isMainTab =", isMainTab);
-        if (!isMainTab) {
-            _initAttempts++;
-            if (_initAttempts < MAX_INIT_ATTEMPTS) {
-                console.log("[SD-WebUI Diagnostics] DOM not ready yet, retrying in 500ms...");
-                setTimeout(init, 500);
-            } else {
-                console.log("[SD-WebUI Diagnostics] Max init attempts reached. Widget will not render.");
-                window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true; // Mark as done
-            }
-            return;
-        }
+        // NOTE: We intentionally do NOT gate on isMainTab here. Forge Neo / Gradio 4
+        // renders DOM asynchronously and may place generation components inside shadow
+        // DOMs or Vue portals, making simple querySelector checks unreliable. The widget
+        // is useful on any page, and the user can disable it globally via Settings.
+        console.log("[SD-WebUI Diagnostics] Proceeding with init (no DOM gate).");
 
         window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
         console.log("[SD-WebUI Diagnostics] Creating panel...");
