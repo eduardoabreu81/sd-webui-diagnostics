@@ -604,19 +604,20 @@
                 border-bottom: 1px solid #374151;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 {
-                font-size: 11px;
+                font-size: 13px;
                 line-height: 1.3;
                 text-align: center;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
-                gap: 4px;
-                max-width: 360px;
+                gap: 2px;
+                max-width: 320px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badge {
-                font-size: 10px;
-                padding: 2px 4px;
+                font-size: 8px;
+                padding: 1px 2px;
+                border-radius: 3px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-icon-view { display: none; }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-body { display: none; }
