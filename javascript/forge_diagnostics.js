@@ -540,6 +540,28 @@
     // ------------------------------------------------------------------
     // UI Panel
     // ------------------------------------------------------------------
+    function applyAnchor(anchor) {
+        if (!panelEl) return;
+        const margin = 16;
+        panelEl.style.left = '';
+        panelEl.style.top = '';
+        panelEl.style.right = '';
+        panelEl.style.bottom = '';
+        if (anchor === 'top-left') {
+            panelEl.style.top = margin + 'px';
+            panelEl.style.left = margin + 'px';
+        } else if (anchor === 'top-right') {
+            panelEl.style.top = margin + 'px';
+            panelEl.style.right = margin + 'px';
+        } else if (anchor === 'bottom-left') {
+            panelEl.style.bottom = margin + 'px';
+            panelEl.style.left = margin + 'px';
+        } else {
+            panelEl.style.bottom = margin + 'px';
+            panelEl.style.right = margin + 'px';
+        }
+    }
+
     function createPanel() {
         console.log("[SD-WebUI Diagnostics] createPanel() called");
         const css = `
@@ -594,19 +616,19 @@
             .sd-webui-diagnostics-panel.state-icon .sd-webui-diagnostics-body { display: none; }
             /* State: bar */
             .sd-webui-diagnostics-panel.state-bar {
-                width: 460px;
-                min-width: 320px;
+                width: auto;
+                min-width: unset;
                 max-width: 90vw;
                 border-radius: 12px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header {
-                padding: 10px 14px;
+                padding: 6px 10px;
                 border-bottom: 1px solid #374151;
+                justify-content: flex-start;
+                gap: 8px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 {
-                font-size: 13px;
-                line-height: 1.3;
-                text-align: center;
+                display: none !important;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
                 display: grid;
@@ -836,7 +858,7 @@
                 <!-- Drag handle -->
                 <div class="fd-drag-handle" id="fd-drag-handle" title="Drag to move">⋮<br>⋮<br>⋮</div>
                 <!-- Title -->
-                <h3>🔍 SD-WebUI<br>Diagnostics</h3>
+                <h3>🔍 SD-WebUI Diagnostics</h3>
                 <!-- Badges -->
                 <div class="sd-webui-diagnostics-badges">
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-inp">INP —</span>
@@ -958,29 +980,6 @@
                 toggleBuiltins();
             }
         });
-
-        // Magnetic corner positioning (dock-like)
-        function applyAnchor(anchor) {
-            const margin = 16;
-            panelEl.style.left = '';
-            panelEl.style.top = '';
-            panelEl.style.right = '';
-            panelEl.style.bottom = '';
-            if (anchor === 'top-left') {
-                panelEl.style.top = margin + 'px';
-                panelEl.style.left = margin + 'px';
-            } else if (anchor === 'top-right') {
-                panelEl.style.top = margin + 'px';
-                panelEl.style.right = margin + 'px';
-            } else if (anchor === 'bottom-left') {
-                panelEl.style.bottom = margin + 'px';
-                panelEl.style.left = margin + 'px';
-            } else {
-                // bottom-right default
-                panelEl.style.bottom = margin + 'px';
-                panelEl.style.right = margin + 'px';
-            }
-        }
 
         // Drag: widget follows mouse via transform, snaps on release
         let dragState = { active: false, startX: 0, startY: 0, origLeft: 0, origTop: 0 };
