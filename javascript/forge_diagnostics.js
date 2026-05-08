@@ -615,9 +615,9 @@
                 max-width: 320px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badge {
-                font-size: 8px;
-                padding: 1px 2px;
-                border-radius: 3px;
+                font-size: 8px !important;
+                padding: 1px 2px !important;
+                border-radius: 3px !important;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-icon-view { display: none; }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-body { display: none; }
@@ -1653,7 +1653,8 @@
         window.__SD_WEBUI_DIAGNOSTICS_INIT__ = true;
         console.log("[SD-WebUI Diagnostics] Creating panel...");
         createPanel();
-        const savedAnchor = localStorage.getItem('sd_diagnostics_anchor') || CFG.position_anchor || 'bottom-right';
+        // Settings anchor has priority over localStorage so users can reset via Settings.
+        const savedAnchor = CFG.position_anchor || localStorage.getItem('sd_diagnostics_anchor') || 'bottom-right';
         applyAnchor(savedAnchor);
         startMemoryPolling();
         startDomNodesObserver();
