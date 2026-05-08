@@ -628,7 +628,13 @@
                 gap: 8px;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-header h3 {
-                display: none !important;
+                display: block;
+                font-size: 9px;
+                line-height: 1.2;
+                text-align: center;
+                margin: 0 6px 0 0;
+                flex-shrink: 0;
+                width: min-content;
             }
             .sd-webui-diagnostics-panel.state-bar .sd-webui-diagnostics-badges {
                 display: grid;
@@ -858,7 +864,7 @@
                 <!-- Drag handle -->
                 <div class="fd-drag-handle" id="fd-drag-handle" title="Drag to move">⋮<br>⋮<br>⋮</div>
                 <!-- Title -->
-                <h3>🔍 SD-WebUI Diagnostics</h3>
+                <h3>🔍 SD-WebUI<br>Diagnostics</h3>
                 <!-- Badges -->
                 <div class="sd-webui-diagnostics-badges">
                     <span class="sd-webui-diagnostics-badge" id="fd-badge-inp">INP —</span>
