@@ -28,7 +28,7 @@
         extensionStatus: [],   // {name, loaded, errors, warnings, healthy}
     };
 
-    const VERSION = "v0.2.0";
+    const VERSION = "v0.2.1";
 
     let panelState = 'bar';       // 'icon' | 'bar' | 'expanded'
     let prevMinimizedState = 'bar'; // last non-expanded state

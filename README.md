@@ -28,6 +28,11 @@ A lightweight frontend profiler that runs directly inside your Stable Diffusion 
 
 ## 🆕 What's New
 
+### v0.2.1 — Fix: Settings `enabled` toggle now respected on boot and runtime
+- **Config File Race Condition Fixed** — `diagnostics_config.js` is now written *after* settings are registered, so `enabled=false` is preserved across restarts.
+- **Runtime Disable** — Frontend polls backend state and calls `destroyWidget()` if the toggle is turned off, removing the panel without requiring a page reload.
+- **Safe Save Hook** — Monkey-patches `shared.opts.save` to rewrite config files immediately when clicking "Apply settings".
+
 ### v0.2.0 — 3-State Floating Widget + Magnetic Docking
 - **Three UI States** — Icon (minimal badge), Bar (compact header with badges), and Expanded (full panel with tabs). ⭐
 - **Magnetic Corner Docking** — Drag the handle (⋮⋮⋮) to any screen edge; widget snaps to the nearest corner and remembers its position. ⭐
@@ -105,6 +110,11 @@ A lightweight frontend profiler that runs directly inside your Stable Diffusion 
 ---
 
 ## 📖 Changelog
+
+### v0.2.1 — Fix: Settings `enabled` respected on boot and runtime (2026-05-08)
+- Fixed config file being written at import-time (before `shared.opts` registered saved values), which caused `enabled=false` to be ignored on every restart.
+- Added `_get_config()` helper and exposed settings via `/sd-webui-diagnostics/api/state`.
+- Frontend: added `destroyWidget()` cleanup, defensive `if (!el) return;` guards in all `render*()` functions, and drag-handler null checks.
 
 ### v0.2.0 — 3-State Floating Widget + Magnetic Docking (2026-05-07)
 - **Three UI States** — Icon (minimal badge), Bar (compact header), Expanded (full panel).
