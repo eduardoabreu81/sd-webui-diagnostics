@@ -153,6 +153,6 @@ MIT — see [LICENSE](LICENSE)
 
 Made with ❤️ for the Stable Diffusion community
 
-**[Report Bug](https://github.com/eduardoabreu81/sd-webui-diagnostics/issues)** • **[Request Feature](https://github.com/eduardoabreu81/sd-webui-diagnostics/issues)** • **[Discussions](https://github.com/eduardoabreu81/sd-webui-diagnostics/discussions)**
+**[Report Bug](https://github.com/eduardoabreu81/sd-webui-diagnostics/issues)** • **[Request Feature](https://github.com/eduardoabreu81/sd-webui-diagnostics/issues)** • **[Discussions](https://github.com/eduardoabreu81/sd-webui-diagnostics/discussions)** • **[☕ Ko-fi](https://ko-fi.com/eduardoabreu81)**
 
 </div>
